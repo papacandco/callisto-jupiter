@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "callisto-jupiter"
+version = "0.1.0"
+description = "Callisto server-monitoring metrics exporter (CPU/RAM/DISK/GPU → ingest DSN)"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+dependencies = [
+    "psutil>=5.9",
+    "requests>=2.28",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+gpu = ["pynvml>=11.5"]
+dev = ["pytest>=7"]
+
+[project.scripts]
+callisto-jupiter = "callisto_jupiter.__main__:main"
+
+[tool.setuptools]
+packages = ["callisto_jupiter"]

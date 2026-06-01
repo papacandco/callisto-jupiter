@@ -1,0 +1,22 @@
+[Unit]
+Description=Callisto Jupiter metrics exporter
+Documentation=https://callistosignal.com
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# Config is read from /etc/callisto-jupiter/config.toml (see config.example.toml).
+# Optionally override via an environment file instead:
+#   EnvironmentFile=-/etc/callisto-jupiter/env
+ExecStart=/usr/local/bin/callisto-jupiter
+Restart=always
+RestartSec=10
+# Run unprivileged; disk_path must be readable by this user.
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,18 @@
+# callisto-jupiter configuration — install to /etc/callisto-jupiter/config.toml
+#
+# The DSN is generated per-server by Callisto (server-monitoring → show page)
+# and shared with this agent. Keep it secret; it embeds the push token.
+
+dsn = "https://ingest.callistosignal.com/REPLACE-WITH-SERVER-ID?token=REPLACE-WITH-TOKEN"
+
+# How often to collect + push, in seconds.
+interval_seconds = 60
+
+# Filesystem whose usage% is reported as the `disk` metric.
+disk_path = "/"
+
+# Per-request HTTP timeout, in seconds.
+timeout_seconds = 10
+
+# Any of the above can be overridden by environment variables:
+#   CALLISTO_DSN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT
