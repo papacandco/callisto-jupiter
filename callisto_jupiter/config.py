@@ -7,6 +7,7 @@ required; everything else has a sane default.
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 
 try:  # Python 3.11+
@@ -14,10 +15,23 @@ try:  # Python 3.11+
 except ModuleNotFoundError:  # Python 3.9 / 3.10
     import tomli as tomllib  # type: ignore[no-redef]
 
-DEFAULT_CONFIG_PATH = "/etc/callisto-jupiter/config.toml"
 DEFAULT_INTERVAL = 60
-DEFAULT_DISK_PATH = "/"
 DEFAULT_TIMEOUT = 10
+
+
+def default_config_path() -> str:
+    """OS-conventional config location. Overridable via CALLISTO_CONFIG."""
+    if sys.platform == "win32":
+        base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        return os.path.join(base, "callisto-jupiter", "config.toml")
+    if sys.platform == "darwin":
+        return "/Library/Application Support/callisto-jupiter/config.toml"
+    return "/etc/callisto-jupiter/config.toml"
+
+
+def default_disk_path() -> str:
+    """Root filesystem to report as the `disk` metric, per OS."""
+    return "C:\\" if sys.platform == "win32" else "/"
 
 
 class ConfigError(Exception):
@@ -28,7 +42,7 @@ class ConfigError(Exception):
 class Config:
     dsn: str
     interval_seconds: int = DEFAULT_INTERVAL
-    disk_path: str = DEFAULT_DISK_PATH
+    disk_path: str = "/"
     timeout_seconds: int = DEFAULT_TIMEOUT
 
 
@@ -53,7 +67,7 @@ def load_config(env: dict | None = None) -> Config:
     """
     env = os.environ if env is None else env
 
-    path = env.get("CALLISTO_CONFIG", DEFAULT_CONFIG_PATH)
+    path = env.get("CALLISTO_CONFIG") or default_config_path()
     file_cfg = _read_file(path)
 
     dsn = env.get("CALLISTO_DSN") or file_cfg.get("dsn") or ""
@@ -64,7 +78,7 @@ def load_config(env: dict | None = None) -> Config:
         )
 
     interval = env.get("CALLISTO_INTERVAL", file_cfg.get("interval_seconds", DEFAULT_INTERVAL))
-    disk_path = env.get("CALLISTO_DISK_PATH") or file_cfg.get("disk_path") or DEFAULT_DISK_PATH
+    disk_path = env.get("CALLISTO_DISK_PATH") or file_cfg.get("disk_path") or default_disk_path()
     timeout = env.get("CALLISTO_TIMEOUT", file_cfg.get("timeout_seconds", DEFAULT_TIMEOUT))
 
     interval_seconds = _as_int(interval, "interval_seconds")

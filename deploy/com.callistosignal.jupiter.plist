@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  callisto-jupiter launchd LaunchDaemon (macOS).
+
+  Install:
+    sudo cp deploy/com.callistosignal.jupiter.plist /Library/LaunchDaemons/
+    sudo launchctl load -w /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+  Logs:
+    /var/log/callisto-jupiter.log  (and .err.log)
+  Config is read from /Library/Application Support/callisto-jupiter/config.toml
+  (or set CALLISTO_DSN below). Update the ProgramArguments path if callisto-jupiter
+  lives elsewhere (`which callisto-jupiter`).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.callistosignal.jupiter</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/callisto-jupiter</string>
+    </array>
+
+    <!-- Uncomment to configure via env instead of the config file:
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>CALLISTO_DSN</key>
+        <string>https://ingest.callistosignal.com/REPLACE-ID?token=REPLACE-TOKEN</string>
+    </dict>
+    -->
+
+    <key>RunAtLoad</key>
+    <true/>
+    <key>KeepAlive</key>
+    <true/>
+
+    <key>StandardOutPath</key>
+    <string>/var/log/callisto-jupiter.log</string>
+    <key>StandardErrorPath</key>
+    <string>/var/log/callisto-jupiter.err.log</string>
+</dict>
+</plist>

@@ -73,6 +73,25 @@ README.md
 - collectors shape/units with `psutil` monkeypatched; GPU-absent path omits gpu.
 - DSN handling + payload build; client retry on mocked HTTP failure; success path.
 
+## Cross-platform support (Linux / macOS / Windows) — added 2026-06-02
+
+The agent core (psutil/requests) is already portable; the OS-specific pieces:
+
+- **Config path** — `default_config_path()` resolves per OS (Linux `/etc/...`,
+  macOS `/Library/Application Support/...`, Windows `%PROGRAMDATA%\...`);
+  `CALLISTO_CONFIG` / env vars override everywhere. `default_disk_path()` is `/`
+  on Unix, `C:\` on Windows.
+- **Shutdown** — register `SIGINT` always; `SIGTERM`/`SIGBREAK` only when the
+  platform defines them (guarded). The service manager terminates the process
+  regardless; the interruptible sleep keeps stops responsive.
+- **Service units** — Linux `deploy/callisto-jupiter.service` (systemd), macOS
+  `deploy/com.callistosignal.jupiter.plist` (launchd), Windows
+  `deploy/windows-nssm.md` (NSSM wrapper, no extra Python dep).
+- **GPU** — pynvml works on Linux/Windows NVIDIA hosts; macOS has no NVIDIA, so
+  `gpu` auto-skips (existing behavior).
+
+No new runtime dependencies; collectors/client unchanged.
+
 ## Out of scope
 
 - AMD/Intel GPUs, per-core/per-disk breakdowns, TLS client certs, packaging to

@@ -1,6 +1,35 @@
+import os
+
 import pytest
 
-from callisto_jupiter.config import ConfigError, load_config
+import callisto_jupiter.config as config_mod
+from callisto_jupiter.config import (
+    ConfigError,
+    default_config_path,
+    default_disk_path,
+    load_config,
+)
+
+
+def test_default_config_path_per_os(monkeypatch):
+    monkeypatch.setattr(config_mod.sys, "platform", "linux")
+    assert default_config_path() == "/etc/callisto-jupiter/config.toml"
+
+    monkeypatch.setattr(config_mod.sys, "platform", "darwin")
+    assert default_config_path() == "/Library/Application Support/callisto-jupiter/config.toml"
+
+    # os.path.join uses the host separator, so build the expectation the same
+    # way (on real Windows this yields backslashes).
+    monkeypatch.setattr(config_mod.sys, "platform", "win32")
+    monkeypatch.setenv("PROGRAMDATA", r"C:\ProgramData")
+    assert default_config_path() == os.path.join(r"C:\ProgramData", "callisto-jupiter", "config.toml")
+
+
+def test_default_disk_path_per_os(monkeypatch):
+    monkeypatch.setattr(config_mod.sys, "platform", "linux")
+    assert default_disk_path() == "/"
+    monkeypatch.setattr(config_mod.sys, "platform", "win32")
+    assert default_disk_path() == "C:\\"
 
 
 def _write(tmp_path, body: str) -> str:

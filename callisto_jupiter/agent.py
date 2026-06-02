@@ -24,8 +24,18 @@ class Agent:
         self._stop.set()
 
     def install_signal_handlers(self) -> None:
-        signal.signal(signal.SIGTERM, self.request_stop)
-        signal.signal(signal.SIGINT, self.request_stop)
+        # SIGINT exists on every platform; SIGTERM/SIGBREAK vary (Windows lacks
+        # a delivered SIGTERM, but defines SIGBREAK). Register what's available;
+        # the service manager (systemd/launchd/NSSM) terminates us regardless,
+        # and the interruptible sleep keeps stops responsive where signals land.
+        for name in ("SIGINT", "SIGTERM", "SIGBREAK"):
+            sig = getattr(signal, name, None)
+            if sig is None:
+                continue
+            try:
+                signal.signal(sig, self.request_stop)
+            except (ValueError, OSError, RuntimeError):
+                pass
 
     def run_once(self) -> bool:
         """Collect and push one cycle. Returns the push result."""
