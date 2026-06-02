@@ -23,12 +23,22 @@ hosts without an NVIDIA GPU/driver.
 
 ## Install
 
+Install into a dedicated virtualenv at a fixed path (robust across distros —
+avoids PEP 668 "externally-managed-environment" errors and gives the service a
+known binary path). Requires Python 3.9+.
+
 ```bash
-pip install .            # core (CPU/RAM/DISK)
-pip install '.[gpu]'     # add NVIDIA GPU support (pynvml)
+git clone https://github.com/papacandco/callisto-jupiter
+cd callisto-jupiter
+sudo python3 -m venv /opt/callisto-jupiter
+sudo /opt/callisto-jupiter/bin/pip install .          # core (CPU/RAM/DISK)
+sudo /opt/callisto-jupiter/bin/pip install '.[gpu]'   # add NVIDIA GPU support (pynvml)
 ```
 
-Requires Python 3.9+.
+`pip` installs the `callisto_jupiter` package into the venv and creates the
+`callisto-jupiter` executable at `/opt/callisto-jupiter/bin/callisto-jupiter`
+— that's the path the systemd unit / launchd plist run. You do not copy the
+Python code anywhere by hand.
 
 ## Configure
 
@@ -61,9 +71,12 @@ Settings (file keys / env overrides):
 
 ## Run
 
+Use the venv's executable (`/opt/callisto-jupiter/bin/callisto-jupiter`), or
+activate the venv / put it on PATH:
+
 ```bash
-callisto-jupiter            # daemon loop
-callisto-jupiter --once     # one collect+push cycle (handy for testing)
+/opt/callisto-jupiter/bin/callisto-jupiter            # daemon loop
+/opt/callisto-jupiter/bin/callisto-jupiter --once     # one collect+push cycle (handy for testing)
 ```
 
 The agent itself is the same plain process on every OS. Run it under your

@@ -8,8 +8,8 @@
   Logs:
     /var/log/callisto-jupiter.log  (and .err.log)
   Config is read from /Library/Application Support/callisto-jupiter/config.toml
-  (or set CALLISTO_DSN below). Update the ProgramArguments path if callisto-jupiter
-  lives elsewhere (`which callisto-jupiter`).
+  (or set CALLISTO_DSN below). Adjust the ProgramArguments path if the venv
+  lives elsewhere.
 -->
 <plist version="1.0">
 <dict>
@@ -18,7 +18,7 @@
 
     <key>ProgramArguments</key>
     <array>
-        <string>/usr/local/bin/callisto-jupiter</string>
+        <string>/opt/callisto-jupiter/bin/callisto-jupiter</string>
     </array>
 
     <!-- Uncomment to configure via env instead of the config file:
