@@ -95,11 +95,16 @@ journalctl -u callisto-jupiter -f
 
 ```bash
 sudo cp deploy/com.callistosignal.jupiter.plist /Library/LaunchDaemons/
-sudo launchctl load -w /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+sudo chown root:wheel /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+# Modern API (macOS 10.11+). `launchctl load` is deprecated and fails with a
+# "try launchctl bootstrap" hint.
+sudo launchctl bootstrap system /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+sudo launchctl kickstart -k system/com.callistosignal.jupiter   # start now
 # logs: /var/log/callisto-jupiter.log
+# stop/remove: sudo launchctl bootout system/com.callistosignal.jupiter
 ```
 
-(Adjust the binary path in the plist if `which callisto-jupiter` differs.)
+(Adjust the binary path in the plist if the venv lives elsewhere.)
 
 ### Windows — NSSM
 

@@ -2,9 +2,13 @@
 <!--
   callisto-jupiter launchd LaunchDaemon (macOS).
 
-  Install:
+  Install (modern API; `launchctl load` is deprecated and errors):
     sudo cp deploy/com.callistosignal.jupiter.plist /Library/LaunchDaemons/
-    sudo launchctl load -w /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+    sudo chown root:wheel /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+    sudo launchctl bootstrap system /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+    sudo launchctl kickstart -k system/com.callistosignal.jupiter
+  Stop/remove:
+    sudo launchctl bootout system/com.callistosignal.jupiter
   Logs:
     /var/log/callisto-jupiter.log  (and .err.log)
   Config is read from /Library/Application Support/callisto-jupiter/config.toml
