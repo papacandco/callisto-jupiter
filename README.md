@@ -24,6 +24,13 @@ sharing one `collected_at`; consumers average across cores for the overall
 percentage. `ram`/`disk`/`gpu` are single, unlabelled samples. The `gpu` sample
 is omitted on hosts without an NVIDIA GPU/driver.
 
+The agent also emits per-interface network throughput (`net_rx`/`net_tx`,
+`unit: "bytes_per_sec"`, `labels: {"iface": "<name>"}`, loopback excluded) and
+process-status counts (`proc`, `unit: "count"`, `labels: {"status": "<state>"}`,
+states `running`/`sleeping`/`idle`/`stopped`/`zombie`/`other`). Network rates are
+deltas between scrapes, so the very first scrape after start emits no `net_*`
+samples.
+
 ## Install
 
 ### Quick (one command)
