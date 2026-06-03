@@ -1,7 +1,9 @@
 """Configuration loading: /etc/callisto-jupiter/config.toml + env overrides.
 
-Precedence: environment variable > config file > built-in default. The DSN is
-required; everything else has a sane default.
+Precedence: environment variable > config file > built-in default. The DSN and
+token are both required; everything else has a sane default. The token is sent
+in the `X-Callisto-Jupiter-Token` header (see client.py), kept separate from the
+DSN so the DSN can be logged without leaking the credential.
 """
 
 from __future__ import annotations
@@ -41,6 +43,7 @@ class ConfigError(Exception):
 @dataclass(frozen=True)
 class Config:
     dsn: str
+    token: str
     interval_seconds: int = DEFAULT_INTERVAL
     disk_path: str = "/"
     timeout_seconds: int = DEFAULT_TIMEOUT
@@ -74,7 +77,14 @@ def load_config(env: dict | None = None) -> Config:
     if not dsn:
         raise ConfigError(
             "No DSN configured. Set CALLISTO_DSN or `dsn` in "
-            f"{path} (https://ingest.callistosignal.com/<id>?token=<token>)."
+            f"{path} (https://ingest.callistosignal.com/servers/<id>)."
+        )
+
+    token = env.get("CALLISTO_TOKEN") or file_cfg.get("token") or ""
+    if not token:
+        raise ConfigError(
+            "No token configured. Set CALLISTO_TOKEN or `token` in "
+            f"{path}; it is sent in the X-Callisto-Jupiter-Token header."
         )
 
     interval = env.get("CALLISTO_INTERVAL", file_cfg.get("interval_seconds", DEFAULT_INTERVAL))
@@ -87,6 +97,7 @@ def load_config(env: dict | None = None) -> Config:
 
     return Config(
         dsn=dsn,
+        token=token,
         interval_seconds=interval_seconds,
         disk_path=disk_path,
         timeout_seconds=_as_int(timeout, "timeout_seconds"),

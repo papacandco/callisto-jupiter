@@ -1,9 +1,11 @@
 # callisto-jupiter configuration — install to /etc/callisto-jupiter/config.toml
 #
-# The DSN is generated per-server by Callisto (server-monitoring → show page)
-# and shared with this agent. Keep it secret; it embeds the push token.
+# The DSN and token are generated per-server by Callisto (server-monitoring →
+# show page) and shared with this agent. The token is the push credential, sent
+# in the X-Callisto-Jupiter-Token header; keep it secret.
 
-dsn = "https://ingest.callistosignal.com/REPLACE-WITH-SERVER-ID?token=REPLACE-WITH-TOKEN"
+dsn = "https://ingest.callistosignal.com/servers/REPLACE-WITH-SERVER-ID"
+token = "REPLACE-WITH-TOKEN"
 
 # How often to collect + push, in seconds.
 interval_seconds = 60
@@ -15,4 +17,4 @@ disk_path = "/"
 timeout_seconds = 10
 
 # Any of the above can be overridden by environment variables:
-#   CALLISTO_DSN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT
+#   CALLISTO_DSN, CALLISTO_TOKEN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT

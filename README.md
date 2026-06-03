@@ -10,8 +10,8 @@ callisto-scheduler.
 
 ```
 callisto-jupiter (this agent)  ──POST samples──▶  callisto-app ingest endpoint
-        on each monitored host                    https://ingest.callistosignal.com/<id>?token=<token>
-                                                          │ stores server_monitoring_data
+        on each monitored host                    https://ingest.callistosignal.com/servers/<id>
+        (token in X-Callisto-Jupiter-Token)               │ stores server_monitoring_data
                                                           ▼
                                                    callisto-scheduler cron
                                                    evaluates alert rules → notify
@@ -29,19 +29,20 @@ is omitted on hosts without an NVIDIA GPU/driver.
 ### Quick (one command)
 
 From the cloned repo, the bundled installer does everything below — venv, config,
-service, and a verification cycle — in one shot. Pass the per-server DSN from the
-server's page in Callisto (it also accepts `CALLISTO_DSN`, or prompts):
+service, and a verification cycle — in one shot. Pass the per-server DSN and
+token from the server's page in Callisto (it also accepts `CALLISTO_DSN` /
+`CALLISTO_TOKEN`, or prompts):
 
 ```bash
 git clone https://github.com/papacandco/callisto-jupiter
 cd callisto-jupiter
-sudo ./setup.sh "https://ingest.callistosignal.com/<id>?token=<token>"   # Linux / macOS
+sudo ./setup.sh "https://ingest.callistosignal.com/servers/<id>" "<token>"   # Linux / macOS
 ```
 
 On Windows, run the PowerShell companion from an elevated prompt:
 
 ```powershell
-.\setup.ps1 "https://ingest.callistosignal.com/<id>?token=<token>"
+.\setup.ps1 "https://ingest.callistosignal.com/servers/<id>" "<token>"
 ```
 
 `setup.sh` auto-detects Linux vs macOS, adds NVIDIA GPU support when `nvidia-smi`
@@ -69,9 +70,9 @@ Python code anywhere by hand.
 
 ## Configure
 
-Copy the example config and fill in the DSN from the server's page in Callisto
-(server-monitoring → show). Put it at the OS-conventional path (or override with
-`CALLISTO_CONFIG` / env vars):
+Copy the example config and fill in the DSN and token from the server's page in
+Callisto (server-monitoring → show). Put it at the OS-conventional path (or
+override with `CALLISTO_CONFIG` / env vars):
 
 | OS | Default config path |
 |---|---|
@@ -83,7 +84,7 @@ Copy the example config and fill in the DSN from the server's page in Callisto
 # Linux example
 sudo mkdir -p /etc/callisto-jupiter
 sudo cp deploy/config.example.toml /etc/callisto-jupiter/config.toml
-sudo nano /etc/callisto-jupiter/config.toml      # set dsn = "https://ingest.callistosignal.com/<id>?token=<token>"
+sudo nano /etc/callisto-jupiter/config.toml      # set dsn = "https://ingest.callistosignal.com/servers/<id>" and token = "<token>"
 ```
 
 Settings (file keys / env overrides):
@@ -91,6 +92,7 @@ Settings (file keys / env overrides):
 | Key | Env | Default | Meaning |
 |---|---|---|---|
 | `dsn` | `CALLISTO_DSN` | — (required) | per-server ingest DSN |
+| `token` | `CALLISTO_TOKEN` | — (required) | push credential, sent in `X-Callisto-Jupiter-Token` |
 | `interval_seconds` | `CALLISTO_INTERVAL` | `60` | collect/push cadence |
 | `disk_path` | `CALLISTO_DISK_PATH` | `/` (Unix), `C:\` (Windows) | filesystem reported as `disk` |
 | `timeout_seconds` | `CALLISTO_TIMEOUT` | `10` | per-request HTTP timeout |

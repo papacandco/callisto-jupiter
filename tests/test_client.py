@@ -24,47 +24,49 @@ def test_empty_samples_is_noop(monkeypatch):
         called = True
 
     monkeypatch.setattr(client_mod.requests, "post", post)
-    assert IngestClient("https://x/s?token=t").push([]) is True
+    assert IngestClient("https://x/s", "t").push([]) is True
     assert called is False
 
 
-def test_success_posts_to_dsn_with_samples(monkeypatch):
+def test_success_posts_to_dsn_with_samples_and_token_header(monkeypatch):
     captured = {}
 
-    def post(url, json, timeout):
+    def post(url, json, headers, timeout):
         captured["url"] = url
         captured["json"] = json
+        captured["headers"] = headers
         captured["timeout"] = timeout
         return _resp(204)
 
     monkeypatch.setattr(client_mod.requests, "post", post)
-    ok = IngestClient("https://ingest/srv-1?token=abc", timeout=7).push([{"metric_name": "cpu", "value": 5}])
+    ok = IngestClient("https://ingest/srv-1", "abc", timeout=7).push([{"metric_name": "cpu", "value": 5}])
 
     assert ok is True
-    assert captured["url"] == "https://ingest/srv-1?token=abc"
+    assert captured["url"] == "https://ingest/srv-1"
     assert captured["json"] == {"samples": [{"metric_name": "cpu", "value": 5}]}
+    assert captured["headers"] == {"X-Callisto-Jupiter-Token": "abc"}
     assert captured["timeout"] == 7
 
 
 def test_retries_then_succeeds(monkeypatch):
     calls = {"n": 0}
 
-    def post(url, json, timeout):
+    def post(url, json, headers, timeout):
         calls["n"] += 1
         return _resp(500) if calls["n"] < 3 else _resp(200)
 
     monkeypatch.setattr(client_mod.requests, "post", post)
-    assert IngestClient("https://x/s?token=t", max_attempts=3).push([{"a": 1}]) is True
+    assert IngestClient("https://x/s", "t", max_attempts=3).push([{"a": 1}]) is True
     assert calls["n"] == 3
 
 
 def test_gives_up_after_max_attempts(monkeypatch):
     calls = {"n": 0}
 
-    def post(url, json, timeout):
+    def post(url, json, headers, timeout):
         calls["n"] += 1
         raise requests.ConnectionError("refused")
 
     monkeypatch.setattr(client_mod.requests, "post", post)
-    assert IngestClient("https://x/s?token=t", max_attempts=3).push([{"a": 1}]) is False
+    assert IngestClient("https://x/s", "t", max_attempts=3).push([{"a": 1}]) is False
     assert calls["n"] == 3

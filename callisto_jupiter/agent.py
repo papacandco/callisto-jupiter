@@ -16,7 +16,9 @@ log = logging.getLogger("callisto_jupiter.agent")
 class Agent:
     def __init__(self, config: Config, client: IngestClient | None = None) -> None:
         self.config = config
-        self.client = client or IngestClient(config.dsn, timeout=config.timeout_seconds)
+        self.client = client or IngestClient(
+            config.dsn, config.token, timeout=config.timeout_seconds
+        )
         self._stop = threading.Event()
 
     def request_stop(self, *_args) -> None:

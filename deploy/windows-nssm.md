@@ -22,12 +22,13 @@ py -c "import sys; print(sys.executable)"
 Create `C:\ProgramData\callisto-jupiter\config.toml` (the Windows default path):
 
 ```toml
-dsn = "https://ingest.callistosignal.com/REPLACE-ID?token=REPLACE-TOKEN"
+dsn = "https://ingest.callistosignal.com/servers/REPLACE-ID"
+token = "REPLACE-TOKEN"
 interval_seconds = 60
 disk_path = "C:\\"
 ```
 
-(Or skip the file and set `CALLISTO_DSN` as a service env var — see step 3.)
+(Or skip the file and set `CALLISTO_DSN` + `CALLISTO_TOKEN` as service env vars — see step 3.)
 
 ## 3. Install + start the service
 
@@ -39,8 +40,8 @@ nssm set callisto-jupiter Start SERVICE_AUTO_START
 nssm set callisto-jupiter AppStdout "C:\ProgramData\callisto-jupiter\agent.log"
 nssm set callisto-jupiter AppStderr "C:\ProgramData\callisto-jupiter\agent.err.log"
 
-# Optional: configure via env instead of config.toml
-nssm set callisto-jupiter AppEnvironmentExtra CALLISTO_DSN=https://ingest.callistosignal.com/REPLACE-ID?token=REPLACE-TOKEN
+# Optional: configure via env instead of config.toml (space-separated KEY=VALUE pairs)
+nssm set callisto-jupiter AppEnvironmentExtra CALLISTO_DSN=https://ingest.callistosignal.com/servers/REPLACE-ID CALLISTO_TOKEN=REPLACE-TOKEN
 
 nssm start callisto-jupiter
 ```

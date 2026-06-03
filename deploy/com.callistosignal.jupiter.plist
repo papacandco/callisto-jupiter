@@ -14,8 +14,8 @@
   Logs:
     /var/log/callisto-jupiter.log  (and .err.log)
   Config is read from /Library/Application Support/callisto-jupiter/config.toml
-  (or set CALLISTO_DSN below). Adjust the ProgramArguments path if the venv
-  lives elsewhere.
+  (or set CALLISTO_DSN + CALLISTO_TOKEN below). Adjust the ProgramArguments path
+  if the venv lives elsewhere.
 -->
 <plist version="1.0">
 <dict>
@@ -31,7 +31,9 @@
     <key>EnvironmentVariables</key>
     <dict>
         <key>CALLISTO_DSN</key>
-        <string>https://ingest.callistosignal.com/REPLACE-ID?token=REPLACE-TOKEN</string>
+        <string>https://ingest.callistosignal.com/servers/REPLACE-ID</string>
+        <key>CALLISTO_TOKEN</key>
+        <string>REPLACE-TOKEN</string>
     </dict>
     -->
 
