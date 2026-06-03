@@ -29,7 +29,7 @@ def test_run_once_uses_injected_client(monkeypatch):
             pushed["samples"] = samples
             return True
 
-    monkeypatch.setattr(agent_mod, "collect_samples", lambda disk_path: [{"metric_name": "cpu", "value": 1}])
+    monkeypatch.setattr(agent_mod, "collect_samples", lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
     agent = Agent(Config(dsn="https://x/s", token="t"), client=FakeClient())
 
     assert agent.run_once() is True

@@ -7,7 +7,7 @@ import signal
 import threading
 
 from .client import IngestClient
-from .collectors import collect_samples, prime_cpu
+from .collectors import NetworkRateState, collect_samples, prime_cpu
 from .config import Config
 
 log = logging.getLogger("callisto_jupiter.agent")
@@ -20,6 +20,7 @@ class Agent:
             config.dsn, config.token, timeout=config.timeout_seconds
         )
         self._stop = threading.Event()
+        self._net_state = NetworkRateState()
 
     def request_stop(self, *_args) -> None:
         log.info("stop requested; shutting down after current cycle")
@@ -41,13 +42,14 @@ class Agent:
 
     def run_once(self) -> bool:
         """Collect and push one cycle. Returns the push result."""
-        samples = collect_samples(self.config.disk_path)
+        samples = collect_samples(self.config.disk_path, self._net_state)
         ok = self.client.push(samples)
         log.info("pushed %s samples ok=%s", len(samples), ok)
         return ok
 
     def run(self) -> None:
         prime_cpu()
+        self._net_state.prime()
         log.info(
             "callisto-jupiter started: interval=%ss disk_path=%s",
             self.config.interval_seconds,

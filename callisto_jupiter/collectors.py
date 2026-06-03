@@ -183,7 +183,7 @@ def collect_gpu_percent() -> float | None:
             pass
 
 
-def collect_samples(disk_path: str = "/") -> list[dict]:
+def collect_samples(disk_path: str = "/", net_state: NetworkRateState | None = None) -> list[dict]:
     """Collect cpu/ram/disk/gpu samples. GPU is omitted when unavailable; any
     single collector error is logged and skipped."""
     collected_at = _now_iso()
@@ -211,5 +211,25 @@ def collect_samples(disk_path: str = "/") -> list[dict]:
     gpu = collect_gpu_percent()
     if gpu is not None:
         samples.append(_sample(RESOURCE_GPU, gpu, collected_at))
+
+    # Network: per-interface RX/TX byte rates. Needs the cross-scrape state to
+    # diff counters; skipped entirely when the agent didn't supply one.
+    if net_state is not None:
+        try:
+            current = psutil.net_io_counters(pernic=True)
+            samples.extend(
+                collect_network_rates(net_state, collected_at, current, time.monotonic())
+            )
+        except Exception as exc:
+            log.warning("network collection failed: %s", exc)
+
+    # Processes: one `proc` count sample per normalized status.
+    try:
+        for status, count in collect_process_status_counts().items():
+            samples.append(
+                _sample(RESOURCE_PROC, count, collected_at, unit=UNIT_COUNT, labels={"status": status})
+            )
+    except Exception as exc:
+        log.warning("%s collection failed: %s", RESOURCE_PROC, exc)
 
     return samples

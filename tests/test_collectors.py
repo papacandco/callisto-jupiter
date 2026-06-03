@@ -13,6 +13,7 @@ def _patch_psutil(monkeypatch, cpu=(12.0,), ram=34.5, disk=67.8):
     )
     monkeypatch.setattr(collectors.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=ram))
     monkeypatch.setattr(collectors.psutil, "disk_usage", lambda path: types.SimpleNamespace(percent=disk))
+    monkeypatch.setattr(collectors, "collect_process_status_counts", lambda: {})
 
 
 def test_collect_samples_without_gpu(monkeypatch):
@@ -71,6 +72,7 @@ def test_cpu_collection_error_is_skipped(monkeypatch):
     monkeypatch.setattr(collectors.psutil, "virtual_memory", lambda: types.SimpleNamespace(percent=34.5))
     monkeypatch.setattr(collectors.psutil, "disk_usage", lambda path: types.SimpleNamespace(percent=67.8))
     monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
+    monkeypatch.setattr(collectors, "collect_process_status_counts", lambda: {})
 
     names = {s["metric_name"] for s in collectors.collect_samples("/")}
     assert names == {"ram", "disk"}  # cpu dropped, others survive
@@ -159,6 +161,34 @@ def test_process_status_counts_normalizes_and_tallies(monkeypatch):
 
     counts = collectors.collect_process_status_counts()
     assert counts == {"running": 2, "sleeping": 1, "zombie": 1, "other": 1}
+
+
+def test_collect_samples_includes_network_and_processes(monkeypatch):
+    _patch_psutil(monkeypatch)  # patches cpu/ram/disk; proc neutralized to {}
+    monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
+    monkeypatch.setattr(collectors, "collect_process_status_counts", lambda: {"running": 7})
+
+    # Prime then sample with a moving counter so a network rate is produced.
+    state = collectors.NetworkRateState()
+    seq = iter([
+        ({"eth0": _nic(0, 0)}, 100.0),
+        ({"eth0": _nic(100, 200)}, 110.0),
+    ])
+    monkeypatch.setattr(collectors.psutil, "net_io_counters", lambda pernic=False: next(seq)[0])
+    monkeypatch.setattr(collectors.time, "monotonic", lambda: 100.0)
+    collectors.collect_samples("/", state)  # primes baseline
+    monkeypatch.setattr(collectors.time, "monotonic", lambda: 110.0)
+
+    names = {s["metric_name"] for s in collectors.collect_samples("/", state)}
+    assert "net_rx" in names and "net_tx" in names
+    assert "proc" in names
+
+
+def test_collect_samples_without_net_state_has_no_network(monkeypatch):
+    _patch_psutil(monkeypatch)
+    monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
+    names = {s["metric_name"] for s in collectors.collect_samples("/")}
+    assert "net_rx" not in names and "net_tx" not in names
 
 
 def test_process_status_counts_skips_vanished(monkeypatch):
