@@ -110,6 +110,33 @@ def collect_network_rates(
     return samples
 
 
+# Normalized process states surfaced as `proc` series; any psutil status not
+# listed folds into "other" so the dashboard has a bounded, stable label set.
+STATUS_OTHER = "other"
+_STATUS_MAP = {
+    psutil.STATUS_RUNNING: "running",
+    psutil.STATUS_SLEEPING: "sleeping",
+    psutil.STATUS_IDLE: "idle",
+    psutil.STATUS_STOPPED: "stopped",
+    psutil.STATUS_ZOMBIE: "zombie",
+}
+
+
+def collect_process_status_counts() -> dict[str, int]:
+    """Tally running processes by normalized status. Processes that vanish
+    mid-iteration are skipped (psutil raises NoSuchProcess). Statuses with zero
+    processes simply don't appear."""
+    counts: dict[str, int] = {}
+    try:
+        for proc in psutil.process_iter(["status"]):
+            raw = proc.info.get("status")
+            status = _STATUS_MAP.get(raw, STATUS_OTHER)
+            counts[status] = counts.get(status, 0) + 1
+    except psutil.NoSuchProcess:
+        pass
+    return counts
+
+
 def prime_cpu() -> None:
     """Prime psutil's per-CPU percent counters. The first call returns 0.0 for
     each core because it has no prior interval to diff against; call this once

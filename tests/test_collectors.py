@@ -146,3 +146,26 @@ def test_network_rates_skip_loopback_and_counter_reset():
         state, "t1", {"eth0": _nic(10, 10), "lo": _nic(9999, 9999)}, now=110.0)
     # eth0 counter went backwards (reboot) -> negative delta dropped; lo skipped.
     assert out == []
+
+
+def _proc(status):
+    return types.SimpleNamespace(info={"status": status})
+
+
+def test_process_status_counts_normalizes_and_tallies(monkeypatch):
+    procs = [_proc("running"), _proc("running"), _proc("sleeping"),
+             _proc("zombie"), _proc("disk-sleep")]  # disk-sleep -> "other"
+    monkeypatch.setattr(collectors.psutil, "process_iter", lambda attrs=None: iter(procs))
+
+    counts = collectors.collect_process_status_counts()
+    assert counts == {"running": 2, "sleeping": 1, "zombie": 1, "other": 1}
+
+
+def test_process_status_counts_skips_vanished(monkeypatch):
+    def boom():
+        yield _proc("running")
+        raise collectors.psutil.NoSuchProcess(123)
+    monkeypatch.setattr(collectors.psutil, "process_iter", lambda attrs=None: boom())
+
+    counts = collectors.collect_process_status_counts()
+    assert counts == {"running": 1}  # iteration stops cleanly on NoSuchProcess
