@@ -12,3 +12,4 @@ venv/
 # Local config (may contain a real DSN/token)
 config.toml
 /etc/
+docs/superpowers

@@ -1,10 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
   callisto-jupiter launchd LaunchDaemon (macOS).
 
   Install (modern API; `launchctl load` is deprecated and errors):
     sudo cp deploy/com.callistosignal.jupiter.plist /Library/LaunchDaemons/
     sudo chown root:wheel /Library/LaunchDaemons/com.callistosignal.jupiter.plist
+    sudo launchctl bootout system/com.callistosignal.jupiter 2>/dev/null  # if already loaded (avoids "Bootstrap failed: 5")
     sudo launchctl bootstrap system /Library/LaunchDaemons/com.callistosignal.jupiter.plist
     sudo launchctl kickstart -k system/com.callistosignal.jupiter
   Stop/remove:

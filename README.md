@@ -23,9 +23,33 @@ hosts without an NVIDIA GPU/driver.
 
 ## Install
 
-Install into a dedicated virtualenv at a fixed path (robust across distros —
-avoids PEP 668 "externally-managed-environment" errors and gives the service a
-known binary path). Requires Python 3.9+.
+### Quick (one command)
+
+From the cloned repo, the bundled installer does everything below — venv, config,
+service, and a verification cycle — in one shot. Pass the per-server DSN from the
+server's page in Callisto (it also accepts `CALLISTO_DSN`, or prompts):
+
+```bash
+git clone https://github.com/papacandco/callisto-jupiter
+cd callisto-jupiter
+sudo ./setup.sh "https://ingest.callistosignal.com/<id>?token=<token>"   # Linux / macOS
+```
+
+On Windows, run the PowerShell companion from an elevated prompt:
+
+```powershell
+.\setup.ps1 "https://ingest.callistosignal.com/<id>?token=<token>"
+```
+
+`setup.sh` auto-detects Linux vs macOS, adds NVIDIA GPU support when `nvidia-smi`
+is present, writes the config to the OS-conventional path, installs + starts the
+service, and runs one collect+push cycle to confirm it works. Re-running is safe.
+
+### Manual
+
+Prefer the steps yourself? Install into a dedicated virtualenv at a fixed path
+(robust across distros — avoids PEP 668 "externally-managed-environment" errors
+and gives the service a known binary path). Requires Python 3.9+.
 
 ```bash
 git clone https://github.com/papacandco/callisto-jupiter
@@ -56,7 +80,7 @@ Copy the example config and fill in the DSN from the server's page in Callisto
 # Linux example
 sudo mkdir -p /etc/callisto-jupiter
 sudo cp deploy/config.example.toml /etc/callisto-jupiter/config.toml
-sudo $EDITOR /etc/callisto-jupiter/config.toml   # set dsn = "https://ingest.callistosignal.com/<id>?token=<token>"
+sudo nano /etc/callisto-jupiter/config.toml      # set dsn = "https://ingest.callistosignal.com/<id>?token=<token>"
 ```
 
 Settings (file keys / env overrides):
@@ -98,6 +122,7 @@ sudo cp deploy/com.callistosignal.jupiter.plist /Library/LaunchDaemons/
 sudo chown root:wheel /Library/LaunchDaemons/com.callistosignal.jupiter.plist
 # Modern API (macOS 10.11+). `launchctl load` is deprecated and fails with a
 # "try launchctl bootstrap" hint.
+sudo launchctl bootout system/com.callistosignal.jupiter 2>/dev/null  # if already loaded (avoids "Bootstrap failed: 5")
 sudo launchctl bootstrap system /Library/LaunchDaemons/com.callistosignal.jupiter.plist
 sudo launchctl kickstart -k system/com.callistosignal.jupiter   # start now
 # logs: /var/log/callisto-jupiter.log
