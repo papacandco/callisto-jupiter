@@ -111,3 +111,38 @@ def test_sample_carries_explicit_unit_and_labels():
         "collected_at": "2026-06-03T10:00:00Z",
         "labels": {"iface": "eth0"},
     }
+
+
+def _nic(sent, recv):
+    return types.SimpleNamespace(bytes_sent=sent, bytes_recv=recv)
+
+
+def test_network_rates_empty_on_first_call():
+    state = collectors.NetworkRateState()
+    out = collectors.collect_network_rates(
+        state, "2026-06-03T10:00:00Z", {"eth0": _nic(1000, 2000)}, now=100.0)
+    assert out == []  # no prior snapshot yet
+
+
+def test_network_rates_computes_per_interface_bytes_per_sec():
+    state = collectors.NetworkRateState()
+    collectors.collect_network_rates(state, "t0", {"eth0": _nic(1000, 2000)}, now=100.0)
+    out = collectors.collect_network_rates(
+        state, "2026-06-03T10:00:10Z", {"eth0": _nic(1500, 4000)}, now=110.0)
+
+    by = {(s["metric_name"]): s for s in out}
+    # 10s elapsed: rx delta 2000->4000 = 200/s, tx delta 1000->1500 = 50/s.
+    assert by["net_rx"]["value"] == 200.0
+    assert by["net_rx"]["unit"] == "bytes_per_sec"
+    assert by["net_rx"]["labels"] == {"iface": "eth0"}
+    assert by["net_tx"]["value"] == 50.0
+
+
+def test_network_rates_skip_loopback_and_counter_reset():
+    state = collectors.NetworkRateState()
+    collectors.collect_network_rates(
+        state, "t0", {"eth0": _nic(5000, 5000), "lo": _nic(1, 1)}, now=100.0)
+    out = collectors.collect_network_rates(
+        state, "t1", {"eth0": _nic(10, 10), "lo": _nic(9999, 9999)}, now=110.0)
+    # eth0 counter went backwards (reboot) -> negative delta dropped; lo skipped.
+    assert out == []

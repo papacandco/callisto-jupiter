@@ -9,6 +9,7 @@ logged and that sample is dropped — the others are still returned.
 from __future__ import annotations
 
 import logging
+import time
 from datetime import datetime, timezone
 
 import psutil
@@ -48,6 +49,65 @@ def _sample(
     if labels is not None:
         sample["labels"] = labels
     return sample
+
+
+# Interfaces whose throughput we never report (local traffic only).
+_LOOPBACK_PREFIXES = ("lo", "Loopback")
+
+
+def _is_loopback(iface: str) -> bool:
+    return iface.startswith(_LOOPBACK_PREFIXES)
+
+
+class NetworkRateState:
+    """Holds the previous net_io_counters snapshot + a monotonic timestamp so
+    per-interface byte rates can be derived as deltas between scrapes. One
+    instance lives for the agent's lifetime."""
+
+    def __init__(self) -> None:
+        self.prev: dict | None = None
+        self.prev_t: float | None = None
+
+    def prime(self) -> None:
+        """Take a baseline snapshot so the first real scrape already has a delta
+        to diff against (mirrors prime_cpu)."""
+        self.prev = psutil.net_io_counters(pernic=True)
+        self.prev_t = time.monotonic()
+
+
+def collect_network_rates(
+    state: NetworkRateState, collected_at: str, current: dict, now: float
+) -> list[dict]:
+    """Per-interface RX/TX byte rates (bytes/sec) from counter deltas. `current`
+    is psutil.net_io_counters(pernic=True); `now` a monotonic timestamp (both
+    injected so the math is testable). Returns [] until a prior snapshot exists.
+    Loopback interfaces and negative deltas (counter reset / vanished iface) are
+    skipped. Updates `state` in place."""
+    prev, prev_t = state.prev, state.prev_t
+    state.prev, state.prev_t = current, now
+
+    if prev is None or prev_t is None:
+        return []
+    elapsed = now - prev_t
+    if elapsed <= 0:
+        return []
+
+    samples: list[dict] = []
+    for iface, counters in current.items():
+        if _is_loopback(iface):
+            continue
+        previous = prev.get(iface)
+        if previous is None:
+            continue
+        rx = (counters.bytes_recv - previous.bytes_recv) / elapsed
+        tx = (counters.bytes_sent - previous.bytes_sent) / elapsed
+        if rx >= 0:
+            samples.append(_sample(RESOURCE_NET_RX, rx, collected_at,
+                                   unit=UNIT_BYTES_PER_SEC, labels={"iface": iface}))
+        if tx >= 0:
+            samples.append(_sample(RESOURCE_NET_TX, tx, collected_at,
+                                   unit=UNIT_BYTES_PER_SEC, labels={"iface": iface}))
+    return samples
 
 
 def prime_cpu() -> None:
