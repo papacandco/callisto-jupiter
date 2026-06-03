@@ -16,22 +16,33 @@ import psutil
 log = logging.getLogger("callisto_jupiter.collectors")
 
 UNIT_PERCENT = "percent"
+UNIT_BYTES_PER_SEC = "bytes_per_sec"
+UNIT_COUNT = "count"
 
 RESOURCE_CPU = "cpu"
 RESOURCE_RAM = "ram"
 RESOURCE_DISK = "disk"
 RESOURCE_GPU = "gpu"
+RESOURCE_NET_RX = "net_rx"
+RESOURCE_NET_TX = "net_tx"
+RESOURCE_PROC = "proc"
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sample(metric_name: str, value: float, collected_at: str, labels: dict | None = None) -> dict:
+def _sample(
+    metric_name: str,
+    value: float,
+    collected_at: str,
+    unit: str = UNIT_PERCENT,
+    labels: dict | None = None,
+) -> dict:
     sample = {
         "metric_name": metric_name,
         "value": round(float(value), 2),
-        "unit": UNIT_PERCENT,
+        "unit": unit,
         "collected_at": collected_at,
     }
     if labels is not None:

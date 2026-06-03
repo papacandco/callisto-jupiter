@@ -99,3 +99,15 @@ def test_values_are_rounded(monkeypatch):
     monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
     cpu_samples = [s for s in collectors.collect_samples("/") if s["metric_name"] == "cpu"]
     assert cpu_samples[0]["value"] == 12.35
+
+
+def test_sample_carries_explicit_unit_and_labels():
+    s = collectors._sample("net_rx", 1234.5, "2026-06-03T10:00:00Z",
+                           unit=collectors.UNIT_BYTES_PER_SEC, labels={"iface": "eth0"})
+    assert s == {
+        "metric_name": "net_rx",
+        "value": 1234.5,
+        "unit": "bytes_per_sec",
+        "collected_at": "2026-06-03T10:00:00Z",
+        "labels": {"iface": "eth0"},
+    }
