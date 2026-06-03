@@ -184,8 +184,9 @@ def collect_gpu_percent() -> float | None:
 
 
 def collect_samples(disk_path: str = "/", net_state: NetworkRateState | None = None) -> list[dict]:
-    """Collect cpu/ram/disk/gpu samples. GPU is omitted when unavailable; any
-    single collector error is logged and skipped."""
+    """Collect cpu/ram/disk/gpu/network/process samples. GPU is omitted when
+    unavailable; per-interface net_rx/net_tx rates are included only when
+    net_state is supplied; any single collector error is logged and skipped."""
     collected_at = _now_iso()
     samples: list[dict] = []
 

@@ -171,10 +171,10 @@ def test_collect_samples_includes_network_and_processes(monkeypatch):
     # Prime then sample with a moving counter so a network rate is produced.
     state = collectors.NetworkRateState()
     seq = iter([
-        ({"eth0": _nic(0, 0)}, 100.0),
-        ({"eth0": _nic(100, 200)}, 110.0),
+        {"eth0": _nic(0, 0)},
+        {"eth0": _nic(100, 200)},
     ])
-    monkeypatch.setattr(collectors.psutil, "net_io_counters", lambda pernic=False: next(seq)[0])
+    monkeypatch.setattr(collectors.psutil, "net_io_counters", lambda pernic=False: next(seq))
     monkeypatch.setattr(collectors.time, "monotonic", lambda: 100.0)
     collectors.collect_samples("/", state)  # primes baseline
     monkeypatch.setattr(collectors.time, "monotonic", lambda: 110.0)
