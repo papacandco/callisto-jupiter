@@ -27,20 +27,28 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def _sample(metric_name: str, value: float, collected_at: str) -> dict:
-    return {
+def _sample(metric_name: str, value: float, collected_at: str, labels: dict | None = None) -> dict:
+    sample = {
         "metric_name": metric_name,
         "value": round(float(value), 2),
         "unit": UNIT_PERCENT,
         "collected_at": collected_at,
     }
+    if labels is not None:
+        sample["labels"] = labels
+    return sample
 
 
 def prime_cpu() -> None:
-    """Prime psutil's CPU percent. The first call always returns 0.0 because it
-    has no prior interval to diff against; call this once at startup so the
-    first real tick is meaningful."""
-    psutil.cpu_percent(interval=None)
+    """Prime psutil's per-CPU percent counters. The first call returns 0.0 for
+    each core because it has no prior interval to diff against; call this once
+    at startup so the first real tick is meaningful."""
+    psutil.cpu_percent(interval=None, percpu=True)
+
+
+def collect_cpu_percents() -> list[float]:
+    """Per-core CPU utilization (%), one entry per logical core."""
+    return psutil.cpu_percent(interval=None, percpu=True)
 
 
 def collect_gpu_percent() -> float | None:
@@ -81,8 +89,16 @@ def collect_samples(disk_path: str = "/") -> list[dict]:
     collected_at = _now_iso()
     samples: list[dict] = []
 
+    # CPU: one labeled sample per logical core (labels={"cpu": "<index>"}).
+    # Consumers (dashboard chart, alert evaluation) average across cores for
+    # the overall percentage. All cores in a scrape share `collected_at`.
+    try:
+        for index, percent in enumerate(collect_cpu_percents()):
+            samples.append(_sample(RESOURCE_CPU, percent, collected_at, labels={"cpu": str(index)}))
+    except Exception as exc:
+        log.warning("%s collection failed: %s", RESOURCE_CPU, exc)
+
     collectors = [
-        (RESOURCE_CPU, lambda: psutil.cpu_percent(interval=None)),
         (RESOURCE_RAM, lambda: psutil.virtual_memory().percent),
         (RESOURCE_DISK, lambda: psutil.disk_usage(disk_path).percent),
     ]

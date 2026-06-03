@@ -17,9 +17,12 @@ callisto-jupiter (this agent)  ──POST samples──▶  callisto-app ingest 
                                                    evaluates alert rules → notify
 ```
 
-Each push is `POST {"samples": [{"metric_name": "cpu", "value": 23.4, "unit": "percent", "collected_at": "..."}, ...]}`.
-Resource names are `cpu`, `ram`, `disk`, `gpu`. The `gpu` sample is omitted on
-hosts without an NVIDIA GPU/driver.
+Each push is `POST {"samples": [{"metric_name": "cpu", "value": 23.4, "unit": "percent", "labels": {"cpu": "0"}, "collected_at": "..."}, ...]}`.
+Resource names are `cpu`, `ram`, `disk`, `gpu`. CPU is reported **per logical
+core** — one `cpu` sample per core, tagged `labels: {"cpu": "<index>"}`, all
+sharing one `collected_at`; consumers average across cores for the overall
+percentage. `ram`/`disk`/`gpu` are single, unlabelled samples. The `gpu` sample
+is omitted on hosts without an NVIDIA GPU/driver.
 
 ## Install
 
