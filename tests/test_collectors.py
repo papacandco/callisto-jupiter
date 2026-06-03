@@ -130,12 +130,12 @@ def test_network_rates_computes_per_interface_bytes_per_sec():
     out = collectors.collect_network_rates(
         state, "2026-06-03T10:00:10Z", {"eth0": _nic(1500, 4000)}, now=110.0)
 
-    by = {(s["metric_name"]): s for s in out}
+    by = {(s["metric_name"], s["labels"]["iface"]): s for s in out}
     # 10s elapsed: rx delta 2000->4000 = 200/s, tx delta 1000->1500 = 50/s.
-    assert by["net_rx"]["value"] == 200.0
-    assert by["net_rx"]["unit"] == "bytes_per_sec"
-    assert by["net_rx"]["labels"] == {"iface": "eth0"}
-    assert by["net_tx"]["value"] == 50.0
+    assert by[("net_rx", "eth0")]["value"] == 200.0
+    assert by[("net_rx", "eth0")]["unit"] == "bytes_per_sec"
+    assert by[("net_rx", "eth0")]["labels"] == {"iface": "eth0"}
+    assert by[("net_tx", "eth0")]["value"] == 50.0
 
 
 def test_network_rates_skip_loopback_and_counter_reset():

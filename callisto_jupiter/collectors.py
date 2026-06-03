@@ -1,5 +1,7 @@
-"""Resource collectors. Each produces a normalized percent sample matching the
-Callisto ingest contract: {metric_name, value, unit:"percent", collected_at}.
+"""Resource collectors. Each produces a sample matching the Callisto ingest
+contract: {metric_name, value, unit, collected_at}. Unit is "percent" for
+cpu/ram/disk/gpu, "bytes_per_sec" for network rx/tx, and "count" for process
+tallies.
 
 CPU/RAM/DISK come from psutil. GPU comes from NVIDIA's pynvml and is omitted
 entirely when no GPU/driver is present. A failure collecting one metric is
@@ -123,9 +125,9 @@ _STATUS_MAP = {
 
 
 def collect_process_status_counts() -> dict[str, int]:
-    """Tally running processes by normalized status. Processes that vanish
-    mid-iteration are skipped (psutil raises NoSuchProcess). Statuses with zero
-    processes simply don't appear."""
+    """Tally running processes by normalized status. psutil.process_iter handles
+    processes that vanish mid-iteration internally; the guard below is just
+    belt-and-suspenders. Statuses with zero processes simply don't appear."""
     counts: dict[str, int] = {}
     try:
         for proc in psutil.process_iter(["status"]):
