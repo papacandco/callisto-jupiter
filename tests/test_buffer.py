@@ -94,6 +94,23 @@ def test_in_memory_mode_does_not_write(tmp_path):
     assert list(tmp_path.iterdir()) == []
 
 
+def test_prune_zero_max_samples_empties_buffer():
+    buf = SampleBuffer(None, max_age_seconds=3600, max_samples=0)
+    buf.add([_s(value=1), _s(value=2)])
+    buf.prune()
+    assert buf.count() == 0
+
+
+def test_load_ignores_non_dict_entries(tmp_path):
+    path = tmp_path / "buffer.json"
+    path.write_text('[1, "x", {"metric_name": "cpu", "value": 1}]')
+    buf = SampleBuffer(str(path), max_age_seconds=3600, max_samples=100)
+    assert buf.pending() == [{"metric_name": "cpu", "value": 1}]
+    # prune must not raise on the loaded (already-filtered) data
+    buf.prune()
+    assert buf.count() == 1
+
+
 def test_persist_unwritable_path_does_not_raise(tmp_path):
     # A path whose parent is a file (not a dir) cannot be created; persist must
     # log and swallow the error, keeping samples in memory.

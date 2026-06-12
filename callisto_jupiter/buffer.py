@@ -58,7 +58,7 @@ class SampleBuffer:
             log.warning("could not read buffer %s (%s); starting empty", self.path, exc)
             return
         if isinstance(data, list):
-            self._samples = data
+            self._samples = [s for s in data if isinstance(s, dict)]
         else:
             log.warning("buffer %s is not a JSON list; starting empty", self.path)
 
@@ -89,7 +89,9 @@ class SampleBuffer:
             if ts is not None and (now - ts).total_seconds() > self.max_age_seconds:
                 continue
             kept.append(sample)
-        if len(kept) > self.max_samples:
+        if self.max_samples <= 0:
+            kept = []
+        elif len(kept) > self.max_samples:
             kept = kept[-self.max_samples:]
         self._samples = kept
 
