@@ -6,6 +6,7 @@ import logging
 import signal
 import threading
 
+from .buffer import SampleBuffer
 from .client import IngestClient
 from .collectors import NetworkRateState, collect_samples, prime_cpu
 from .config import Config
@@ -21,6 +22,11 @@ class Agent:
         )
         self._stop = threading.Event()
         self._net_state = NetworkRateState()
+        self._buffer = SampleBuffer(
+            config.buffer_path or None,
+            config.buffer_max_age_seconds,
+            config.buffer_max_samples,
+        )
 
     def request_stop(self, *_args) -> None:
         log.info("stop requested; shutting down after current cycle")
@@ -41,10 +47,28 @@ class Agent:
                 pass
 
     def run_once(self) -> bool:
-        """Collect and push one cycle. Returns the push result."""
+        """Collect a cycle, buffer it durably, then flush the buffer to the
+        ingest endpoint in front-first chunks. Returns True only when the buffer
+        is empty afterwards (everything has been accepted by the server)."""
         samples = collect_samples(self.config.disk_path, self._net_state)
-        ok = self.client.push(samples)
-        log.info("pushed %s samples ok=%s", len(samples), ok)
+        self._buffer.add(samples)
+        self._buffer.prune()
+        self._buffer.persist()  # durable before any network attempt
+
+        flushed = 0
+        while self._buffer.count() > 0:
+            chunk = self._buffer.pending()[: self.config.flush_batch_size]
+            if not self.client.push(chunk):
+                break  # server still down — keep the remainder buffered
+            self._buffer.drop_first(len(chunk))
+            self._buffer.persist()
+            flushed += len(chunk)
+
+        ok = self._buffer.count() == 0
+        log.info(
+            "collected %s; flushed %s; buffered %s; ok=%s",
+            len(samples), flushed, self._buffer.count(), ok,
+        )
         return ok
 
     def run(self) -> None:

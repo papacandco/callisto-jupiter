@@ -34,3 +34,58 @@ def test_run_once_uses_injected_client(monkeypatch):
 
     assert agent.run_once() is True
     assert pushed["samples"] == [{"metric_name": "cpu", "value": 1}]
+
+
+def test_failed_push_keeps_samples_buffered(monkeypatch):
+    import callisto_jupiter.agent as agent_mod
+
+    class FailingClient:
+        def push(self, samples):
+            return False
+
+    monkeypatch.setattr(agent_mod, "collect_samples",
+                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+    agent = Agent(Config(dsn="https://x/s", token="t"), client=FailingClient())
+
+    assert agent.run_once() is False
+    assert agent._buffer.count() == 1
+
+
+def test_recovered_push_drains_backlog(monkeypatch):
+    import callisto_jupiter.agent as agent_mod
+
+    calls = {"n": 0}
+
+    class FlakyClient:
+        def push(self, samples):
+            calls["n"] += 1
+            return calls["n"] > 1  # first push fails, later ones succeed
+
+    monkeypatch.setattr(agent_mod, "collect_samples",
+                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+    agent = Agent(Config(dsn="https://x/s", token="t"), client=FlakyClient())
+
+    assert agent.run_once() is False     # outage: buffered
+    assert agent._buffer.count() == 1
+    assert agent.run_once() is True      # recovery: collects 1 more, drains both
+    assert agent._buffer.count() == 0
+
+
+def test_backlog_flushes_in_chunks(monkeypatch):
+    import callisto_jupiter.agent as agent_mod
+
+    pushes = []
+
+    class CountingClient:
+        def push(self, samples):
+            pushes.append(len(samples))
+            return True
+
+    monkeypatch.setattr(agent_mod, "collect_samples",
+                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": i} for i in range(5)])
+    cfg = Config(dsn="https://x/s", token="t", flush_batch_size=2)
+    agent = Agent(cfg, client=CountingClient())
+
+    assert agent.run_once() is True
+    assert pushes == [2, 2, 1]
+    assert agent._buffer.count() == 0
