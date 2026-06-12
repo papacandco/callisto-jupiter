@@ -121,12 +121,14 @@ def test_default_buffer_path_per_os(monkeypatch):
 
 
 def test_default_buffer_path_honors_state_directory(monkeypatch):
+    # Use a path that ISN'T the hardcoded default so the test actually proves
+    # $STATE_DIRECTORY is read (a no-op implementation would fail here).
     monkeypatch.setattr(config_mod.sys, "platform", "linux")
-    monkeypatch.setenv("STATE_DIRECTORY", "/var/lib/callisto-jupiter")
-    assert default_buffer_path() == "/var/lib/callisto-jupiter/buffer.json"
+    monkeypatch.setenv("STATE_DIRECTORY", "/run/callisto-state")
+    assert default_buffer_path() == "/run/callisto-state/buffer.json"
     # systemd may pass a colon-separated list; the first entry is ours.
-    monkeypatch.setenv("STATE_DIRECTORY", "/var/lib/callisto-jupiter:/run/other")
-    assert default_buffer_path() == "/var/lib/callisto-jupiter/buffer.json"
+    monkeypatch.setenv("STATE_DIRECTORY", "/run/callisto-state:/run/other")
+    assert default_buffer_path() == "/run/callisto-state/buffer.json"
 
 
 def test_buffer_defaults(tmp_path, monkeypatch):
