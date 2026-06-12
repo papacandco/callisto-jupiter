@@ -89,3 +89,31 @@ def test_backlog_flushes_in_chunks(monkeypatch):
     assert agent.run_once() is True
     assert pushes == [2, 2, 1]
     assert agent._buffer.count() == 0
+
+
+def test_run_once_persists_buffer_to_disk_on_failure(tmp_path, monkeypatch):
+    import json
+    import callisto_jupiter.agent as agent_mod
+
+    buffer_file = tmp_path / "buffer.json"
+
+    state = {"up": False}
+
+    class TogglingClient:
+        def push(self, samples):
+            return state["up"]
+
+    monkeypatch.setattr(agent_mod, "collect_samples",
+                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+    cfg = Config(dsn="https://x/s", token="t", buffer_path=str(buffer_file))
+    agent = Agent(cfg, client=TogglingClient())
+
+    # Outage: push fails, sample must be persisted to disk.
+    assert agent.run_once() is False
+    assert buffer_file.exists()
+    assert json.loads(buffer_file.read_text()) == [{"metric_name": "cpu", "value": 1}]
+
+    # Recovery: server accepts; buffer drains and the persisted file is emptied.
+    state["up"] = True
+    assert agent.run_once() is True
+    assert json.loads(buffer_file.read_text()) == []
