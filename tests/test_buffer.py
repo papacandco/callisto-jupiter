@@ -120,3 +120,17 @@ def test_persist_unwritable_path_does_not_raise(tmp_path):
     buf.add([_s(value=1)])
     buf.persist()  # must not raise
     assert buf.count() == 1
+
+
+def test_persist_logs_warning_once_per_failure_streak(tmp_path, caplog):
+    import logging
+    blocker = tmp_path / "blocker"
+    blocker.write_text("x")
+    buf = SampleBuffer(str(blocker / "buffer.json"), max_age_seconds=3600, max_samples=100)
+    buf.add([_s(value=1)])
+    with caplog.at_level(logging.WARNING, logger="callisto_jupiter.buffer"):
+        buf.persist()
+        buf.persist()
+        buf.persist()
+    warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+    assert len(warnings) == 1

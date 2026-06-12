@@ -36,12 +36,18 @@ def default_config_path() -> str:
 
 def default_buffer_path() -> str:
     """OS-conventional store-and-forward buffer location. Overridable via
-    CALLISTO_BUFFER_PATH; an empty value disables disk persistence."""
+    CALLISTO_BUFFER_PATH; an empty value disables disk persistence. Under
+    systemd, $STATE_DIRECTORY (set by StateDirectory=callisto-jupiter) is
+    honored so the path stays writable under DynamicUser/ProtectSystem=strict."""
     if sys.platform == "win32":
         base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
         return os.path.join(base, "callisto-jupiter", "buffer.json")
     if sys.platform == "darwin":
         return "/Library/Application Support/callisto-jupiter/buffer.json"
+    state_dir = os.environ.get("STATE_DIRECTORY")
+    if state_dir:
+        # systemd may pass a colon-separated list; the first entry is ours.
+        return os.path.join(state_dir.split(":")[0], "buffer.json")
     return "/var/lib/callisto-jupiter/buffer.json"
 
 

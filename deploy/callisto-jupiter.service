@@ -17,6 +17,10 @@ DynamicUser=yes
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
+# Persisted store-and-forward buffer lives in /var/lib/callisto-jupiter.
+# StateDirectory makes it writable under DynamicUser + ProtectSystem=strict and
+# exports $STATE_DIRECTORY, which the agent's default buffer path honors.
+StateDirectory=callisto-jupiter
 
 [Install]
 WantedBy=multi-user.target

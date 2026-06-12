@@ -141,6 +141,11 @@ sudo systemctl enable --now callisto-jupiter
 journalctl -u callisto-jupiter -f
 ```
 
+The unit sets `StateDirectory=callisto-jupiter`, giving the service a writable
+`/var/lib/callisto-jupiter` for the store-and-forward buffer even under
+`DynamicUser` + `ProtectSystem=strict`. The agent honors the resulting
+`$STATE_DIRECTORY`, so the buffer persists across restarts out of the box.
+
 ### macOS — launchd
 
 ```bash

@@ -108,6 +108,7 @@ from callisto_jupiter.config import default_buffer_path
 
 
 def test_default_buffer_path_per_os(monkeypatch):
+    monkeypatch.delenv("STATE_DIRECTORY", raising=False)
     monkeypatch.setattr(config_mod.sys, "platform", "linux")
     assert default_buffer_path() == "/var/lib/callisto-jupiter/buffer.json"
 
@@ -119,7 +120,17 @@ def test_default_buffer_path_per_os(monkeypatch):
     assert default_buffer_path() == os.path.join(r"C:\ProgramData", "callisto-jupiter", "buffer.json")
 
 
+def test_default_buffer_path_honors_state_directory(monkeypatch):
+    monkeypatch.setattr(config_mod.sys, "platform", "linux")
+    monkeypatch.setenv("STATE_DIRECTORY", "/var/lib/callisto-jupiter")
+    assert default_buffer_path() == "/var/lib/callisto-jupiter/buffer.json"
+    # systemd may pass a colon-separated list; the first entry is ours.
+    monkeypatch.setenv("STATE_DIRECTORY", "/var/lib/callisto-jupiter:/run/other")
+    assert default_buffer_path() == "/var/lib/callisto-jupiter/buffer.json"
+
+
 def test_buffer_defaults(tmp_path, monkeypatch):
+    monkeypatch.delenv("STATE_DIRECTORY", raising=False)
     monkeypatch.setattr(config_mod.sys, "platform", "linux")
     cfg = load_config(env={
         "CALLISTO_CONFIG": str(tmp_path / "missing.toml"),

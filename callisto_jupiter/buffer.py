@@ -46,6 +46,7 @@ class SampleBuffer:
         self.max_age_seconds = max_age_seconds
         self.max_samples = max_samples
         self._samples: list[dict] = []
+        self._persist_failed = False
         self._load()
 
     def _load(self) -> None:
@@ -113,4 +114,13 @@ class SampleBuffer:
                 if os.path.exists(tmp):
                     os.remove(tmp)
         except OSError as exc:
-            log.warning("could not persist buffer to %s (%s); keeping in memory", self.path, exc)
+            if not self._persist_failed:
+                log.warning(
+                    "could not persist buffer to %s (%s); keeping in memory "
+                    "(suppressing repeats until it recovers)", self.path, exc,
+                )
+                self._persist_failed = True
+            return
+        if self._persist_failed:
+            log.info("buffer persistence to %s recovered", self.path)
+            self._persist_failed = False
