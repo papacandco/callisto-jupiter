@@ -19,6 +19,9 @@ except ModuleNotFoundError:  # Python 3.9 / 3.10
 
 DEFAULT_INTERVAL = 60
 DEFAULT_TIMEOUT = 10
+DEFAULT_BUFFER_MAX_AGE = 3600
+DEFAULT_BUFFER_MAX_SAMPLES = 10000
+DEFAULT_FLUSH_BATCH = 500
 
 
 def default_config_path() -> str:
@@ -29,6 +32,23 @@ def default_config_path() -> str:
     if sys.platform == "darwin":
         return "/Library/Application Support/callisto-jupiter/config.toml"
     return "/etc/callisto-jupiter/config.toml"
+
+
+def default_buffer_path() -> str:
+    """OS-conventional store-and-forward buffer location. Overridable via
+    CALLISTO_BUFFER_PATH; an empty value disables disk persistence. Under
+    systemd, $STATE_DIRECTORY (set by StateDirectory=callisto-jupiter) is
+    honored so the path stays writable under DynamicUser/ProtectSystem=strict."""
+    if sys.platform == "win32":
+        base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        return os.path.join(base, "callisto-jupiter", "buffer.json")
+    if sys.platform == "darwin":
+        return "/Library/Application Support/callisto-jupiter/buffer.json"
+    state_dir = os.environ.get("STATE_DIRECTORY")
+    if state_dir:
+        # systemd may pass a colon-separated list; the first entry is ours.
+        return os.path.join(state_dir.split(":")[0], "buffer.json")
+    return "/var/lib/callisto-jupiter/buffer.json"
 
 
 def default_disk_path() -> str:
@@ -47,6 +67,10 @@ class Config:
     interval_seconds: int = DEFAULT_INTERVAL
     disk_path: str = "/"
     timeout_seconds: int = DEFAULT_TIMEOUT
+    buffer_path: str = ""
+    buffer_max_age_seconds: int = DEFAULT_BUFFER_MAX_AGE
+    buffer_max_samples: int = DEFAULT_BUFFER_MAX_SAMPLES
+    flush_batch_size: int = DEFAULT_FLUSH_BATCH
 
 
 def _read_file(path: str) -> dict:
@@ -95,10 +119,41 @@ def load_config(env: dict | None = None) -> Config:
     if interval_seconds < 1:
         raise ConfigError("interval_seconds must be >= 1")
 
+    if "CALLISTO_BUFFER_PATH" in env:
+        buffer_path = env["CALLISTO_BUFFER_PATH"]
+    elif "buffer_path" in file_cfg:
+        buffer_path = file_cfg["buffer_path"]
+    else:
+        buffer_path = default_buffer_path()
+
+    buffer_max_age = env.get(
+        "CALLISTO_BUFFER_MAX_AGE", file_cfg.get("buffer_max_age_seconds", DEFAULT_BUFFER_MAX_AGE)
+    )
+    buffer_max_samples = env.get(
+        "CALLISTO_BUFFER_MAX_SAMPLES", file_cfg.get("buffer_max_samples", DEFAULT_BUFFER_MAX_SAMPLES)
+    )
+    flush_batch = env.get(
+        "CALLISTO_FLUSH_BATCH", file_cfg.get("flush_batch_size", DEFAULT_FLUSH_BATCH)
+    )
+
+    buffer_max_age_seconds = _as_int(buffer_max_age, "buffer_max_age_seconds")
+    if buffer_max_age_seconds < 1:
+        raise ConfigError("buffer_max_age_seconds must be >= 1")
+    buffer_max_samples_v = _as_int(buffer_max_samples, "buffer_max_samples")
+    if buffer_max_samples_v < 1:
+        raise ConfigError("buffer_max_samples must be >= 1")
+    flush_batch_size = _as_int(flush_batch, "flush_batch_size")
+    if flush_batch_size < 1:
+        raise ConfigError("flush_batch_size must be >= 1")
+
     return Config(
         dsn=dsn,
         token=token,
         interval_seconds=interval_seconds,
         disk_path=disk_path,
         timeout_seconds=_as_int(timeout, "timeout_seconds"),
+        buffer_path=buffer_path,
+        buffer_max_age_seconds=buffer_max_age_seconds,
+        buffer_max_samples=buffer_max_samples_v,
+        flush_batch_size=flush_batch_size,
     )

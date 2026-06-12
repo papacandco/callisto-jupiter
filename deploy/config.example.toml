@@ -16,5 +16,23 @@ disk_path = "/"
 # Per-request HTTP timeout, in seconds.
 timeout_seconds = 10
 
+# Store-and-forward buffer: when a push fails, samples are retained here and
+# resent on later cycles (surviving restarts) so metrics aren't lost during a
+# transient outage. Set buffer_path = "" to disable disk persistence
+# (in-memory only). Default path: /var/lib/callisto-jupiter/buffer.json (Linux),
+# /Library/Application Support/callisto-jupiter/buffer.json (macOS),
+# %PROGRAMDATA%\callisto-jupiter\buffer.json (Windows).
+# buffer_path = "/var/lib/callisto-jupiter/buffer.json"
+
+# Drop buffered samples older than this many seconds (avoids replaying stale data).
+buffer_max_age_seconds = 3600
+
+# Maximum buffered samples; oldest are dropped first when exceeded.
+buffer_max_samples = 10000
+
+# Max samples sent per HTTP request when draining the buffer.
+flush_batch_size = 500
+
 # Any of the above can be overridden by environment variables:
-#   CALLISTO_DSN, CALLISTO_TOKEN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT
+#   CALLISTO_DSN, CALLISTO_TOKEN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT,
+#   CALLISTO_BUFFER_PATH, CALLISTO_BUFFER_MAX_AGE, CALLISTO_BUFFER_MAX_SAMPLES, CALLISTO_FLUSH_BATCH

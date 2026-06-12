@@ -31,6 +31,16 @@ states `running`/`sleeping`/`idle`/`stopped`/`zombie`/`other`). Network rates ar
 deltas between scrapes, so the very first scrape after start emits no `net_*`
 samples.
 
+## Reliability (store-and-forward)
+
+If a push fails (network blip, ingest restart), the agent does **not** drop the
+samples: it writes them to a local buffer file and resends them on later cycles,
+draining the backlog `flush_batch_size` samples per request. The buffer survives
+agent restarts and reboots, and is bounded by `buffer_max_age_seconds` and
+`buffer_max_samples` so it can't grow without limit or replay very stale data.
+The default buffer path is OS-conventional (`/var/lib/callisto-jupiter/buffer.json`
+on Linux); set `buffer_path = ""` for in-memory-only behaviour.
+
 ## Install
 
 ### Quick (one command)
@@ -103,6 +113,10 @@ Settings (file keys / env overrides):
 | `interval_seconds` | `CALLISTO_INTERVAL` | `60` | collect/push cadence |
 | `disk_path` | `CALLISTO_DISK_PATH` | `/` (Unix), `C:\` (Windows) | filesystem reported as `disk` |
 | `timeout_seconds` | `CALLISTO_TIMEOUT` | `10` | per-request HTTP timeout |
+| `buffer_path` | `CALLISTO_BUFFER_PATH` | OS state path | store-and-forward buffer file; empty = in-memory only |
+| `buffer_max_age_seconds` | `CALLISTO_BUFFER_MAX_AGE` | `3600` | drop buffered samples older than this |
+| `buffer_max_samples` | `CALLISTO_BUFFER_MAX_SAMPLES` | `10000` | max buffered samples (oldest dropped first) |
+| `flush_batch_size` | `CALLISTO_FLUSH_BATCH` | `500` | samples per HTTP request when draining the buffer |
 | _config file_ | `CALLISTO_CONFIG` | OS path above | full path to the config file |
 
 ## Run
@@ -126,6 +140,11 @@ sudo systemctl daemon-reload
 sudo systemctl enable --now callisto-jupiter
 journalctl -u callisto-jupiter -f
 ```
+
+The unit sets `StateDirectory=callisto-jupiter`, giving the service a writable
+`/var/lib/callisto-jupiter` for the store-and-forward buffer even under
+`DynamicUser` + `ProtectSystem=strict`. The agent honors the resulting
+`$STATE_DIRECTORY`, so the buffer persists across restarts out of the box.
 
 ### macOS — launchd
 
