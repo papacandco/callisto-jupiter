@@ -65,6 +65,7 @@ On Windows, run the PowerShell companion from an elevated prompt:
 `setup.sh` auto-detects Linux vs macOS, adds NVIDIA GPU support when `nvidia-smi`
 is present, writes the config to the OS-conventional path, installs + starts the
 service, and runs one collect+push cycle to confirm it works. Re-running is safe.
+To remove it again, `sudo ./setup.sh --uninstall` — see [Uninstall](#uninstall).
 
 ### Manual
 
@@ -191,6 +192,31 @@ sudo launchctl kickstart -k system/com.callistosignal.jupiter   # start now
 
 See [deploy/windows-nssm.md](deploy/windows-nssm.md) — installs the agent as an
 auto-start Windows service via NSSM.
+
+## Uninstall
+
+```bash
+sudo ./setup.sh --uninstall                 # remove everything, config included
+sudo ./setup.sh --uninstall --keep-config   # leave /etc/callisto-jupiter/config.toml
+```
+
+```powershell
+.\setup.ps1 -Uninstall          # add -KeepConfig to leave the config behind
+```
+
+It stops and removes the service (systemd unit, launchd daemon, or NSSM service),
+deletes the venv at `/opt/callisto-jupiter`, the state directory
+`/var/lib/callisto-jupiter` (including the `/var/lib/private/…` copy older
+`DynamicUser` installs left behind), and the `callisto-jupiter` system account.
+
+The config goes too, because it holds the push token — `--keep-config` keeps it,
+in which case delete it yourself once the server is decommissioned. Anything else
+you put in the config directory is left alone, and the directory itself is only
+removed if that emptied it. On macOS the logs under `/var/log/callisto-jupiter*.log`
+are left in place.
+
+**Rotate the server's token in Callisto afterwards** if the box is being
+decommissioned or handed to someone else — uninstalling doesn't invalidate it.
 
 ## Develop
 

@@ -15,11 +15,19 @@
     The DSN and token may also come from $env:CALLISTO_DSN / $env:CALLISTO_TOKEN,
     or you'll be prompted. The token is sent in the X-Callisto-Jupiter-Token
     header, kept separate from the DSN.
+
+.EXAMPLE
+    # Remove the service, the venv, the state and the config:
+    .\setup.ps1 -Uninstall
+
+    The config holds the push token, so it goes by default; -KeepConfig leaves it.
 #>
 [CmdletBinding()]
 param(
     [string]$Dsn,
-    [string]$Token
+    [string]$Token,
+    [switch]$Uninstall,
+    [switch]$KeepConfig
 )
 
 $ErrorActionPreference = 'Stop'
@@ -37,6 +45,34 @@ function Die  ($m) { Write-Host "ERR $m" -ForegroundColor Red; exit 1 }
 $principal = New-Object Security.Principal.WindowsPrincipal([Security.Principal.WindowsIdentity]::GetCurrent())
 if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     Die "Run this from an elevated PowerShell (Run as Administrator)."
+}
+
+# --- uninstall: tear down what this script created, then exit ---------------------
+if ($Uninstall) {
+    Say "Uninstalling callisto-jupiter..."
+    if (Get-Command nssm -ErrorAction SilentlyContinue) {
+        & nssm stop callisto-jupiter 2>$null
+        & nssm remove callisto-jupiter confirm 2>$null
+    } else {
+        Write-Host "    nssm not on PATH — remove the service by hand if it exists." -ForegroundColor Yellow
+    }
+    Remove-Item -Recurse -Force $Venv -ErrorAction SilentlyContinue
+    # Buffer + NSSM logs live in the data directory alongside the config.
+    foreach ($f in 'buffer.json', 'agent.log', 'agent.err.log') {
+        Remove-Item -Force (Join-Path $DataDir $f) -ErrorAction SilentlyContinue
+    }
+    if ($KeepConfig) {
+        Say "Keeping $Config — it still holds the push token, so delete it (and rotate"
+        Say "the token in Callisto) once this server is decommissioned."
+    } else {
+        Remove-Item -Force $Config, "$Config.bak" -ErrorAction SilentlyContinue
+        # Only if nothing else (an operator's own files) is left in there.
+        if (-not (Get-ChildItem -Force $DataDir -ErrorAction SilentlyContinue)) {
+            Remove-Item -Force $DataDir -ErrorAction SilentlyContinue
+        }
+    }
+    Ok "callisto-jupiter removed."
+    exit 0
 }
 
 # --- resolve DSN + token: param -> env -> prompt ----------------------------------
