@@ -6,21 +6,30 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Requires the `callisto-jupiter` system user (setup.sh creates it).
 # Config is read from /etc/callisto-jupiter/config.toml (see config.example.toml).
 # Optionally override via an environment file instead:
 #   EnvironmentFile=-/etc/callisto-jupiter/env
 ExecStart=/opt/callisto-jupiter/bin/callisto-jupiter
 Restart=always
 RestartSec=10
-# Run unprivileged; disk_path must be readable by this user.
-DynamicUser=yes
+# A broken/unreadable config exits 78 (EX_CONFIG). Restarting can't fix that, so
+# stop instead of crashlooping until someone reads the journal.
+RestartPreventExitStatus=78
+# Run unprivileged as a dedicated system account created by setup.sh. Both the
+# config (root:callisto-jupiter 0640) and disk_path must be readable by it.
+# NOT DynamicUser=yes: its UID is transient, so the root-written 0640 config
+# could never be granted to it and the service crashlooped on PermissionError.
+User=callisto-jupiter
+Group=callisto-jupiter
 NoNewPrivileges=yes
 ProtectSystem=strict
 ProtectHome=yes
 # Persisted store-and-forward buffer lives in /var/lib/callisto-jupiter.
-# StateDirectory makes it writable under DynamicUser + ProtectSystem=strict and
-# exports $STATE_DIRECTORY, which the agent's default buffer path honors.
+# StateDirectory creates it owned by User= (writable under ProtectSystem=strict)
+# and exports $STATE_DIRECTORY, which the agent's default buffer path honors.
 StateDirectory=callisto-jupiter
+StateDirectoryMode=0700
 
 [Install]
 WantedBy=multi-user.target

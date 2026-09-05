@@ -38,7 +38,7 @@ def default_buffer_path() -> str:
     """OS-conventional store-and-forward buffer location. Overridable via
     CALLISTO_BUFFER_PATH; an empty value disables disk persistence. Under
     systemd, $STATE_DIRECTORY (set by StateDirectory=callisto-jupiter) is
-    honored so the path stays writable under DynamicUser/ProtectSystem=strict."""
+    honored so the path stays writable under ProtectSystem=strict."""
     if sys.platform == "win32":
         base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
         return os.path.join(base, "callisto-jupiter", "buffer.json")
@@ -74,10 +74,25 @@ class Config:
 
 
 def _read_file(path: str) -> dict:
+    """Parse the TOML config file, or {} when there isn't one.
+
+    A file that exists but can't be read or parsed is a configuration problem,
+    not a crash: it surfaces as ConfigError so the CLI exits EX_CONFIG with an
+    actionable message instead of a traceback (a service that dies on a raw
+    PermissionError just crashloops under Restart=).
+    """
     if not path or not os.path.isfile(path):
         return {}
-    with open(path, "rb") as fh:
-        return tomllib.load(fh)
+    try:
+        with open(path, "rb") as fh:
+            return tomllib.load(fh)
+    except OSError as exc:
+        raise ConfigError(
+            f"cannot read config file {path}: {exc}. It must be readable by the "
+            "user the agent runs as (on Linux: root:callisto-jupiter, mode 640)."
+        ) from exc
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"cannot parse config file {path}: {exc}") from exc
 
 
 def _as_int(value, field: str) -> int:

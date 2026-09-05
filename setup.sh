@@ -37,6 +37,9 @@ case "$(uname -s)" in
     *)      die "Unsupported OS '$(uname -s)'. Use setup.ps1 on Windows." ;;
 esac
 CONFIG="$CONFIG_DIR/config.toml"
+# The systemd unit runs as this dedicated account (launchd on macOS runs as root).
+SERVICE_USER=callisto-jupiter
+STATE_DIR=/var/lib/callisto-jupiter
 
 # --- 3. resolve DSN + token: arg → env (incl. sudo-forwarded) → prompt ------------
 DSN="${1:-${CALLISTO_DSN:-${DSN_FROM_PARENT:-}}}"
@@ -63,7 +66,20 @@ import sys
 sys.exit(0 if sys.version_info >= (3, 9) else 1)
 PY
 
-# --- 5. venv + install (GPU autodetect) ------------------------------------------
+# --- 5. service account (Linux) ---------------------------------------------------
+# Everything below is written root-owned but group-readable by this account, so
+# the unprivileged service can actually read its config and state.
+if [ "$OS" = linux ] && ! getent passwd "$SERVICE_USER" >/dev/null 2>&1; then
+    say "Creating system user $SERVICE_USER ..."
+    NOLOGIN=/usr/sbin/nologin
+    [ -x "$NOLOGIN" ] || NOLOGIN=/sbin/nologin
+    [ -x "$NOLOGIN" ] || NOLOGIN=/bin/false
+    useradd --system --no-create-home --home-dir "$STATE_DIR" \
+        --shell "$NOLOGIN" "$SERVICE_USER" \
+        || die "Could not create the $SERVICE_USER system user."
+fi
+
+# --- 6. venv + install (GPU autodetect) ------------------------------------------
 say "Creating virtualenv at $VENV ..."
 python3 -m venv "$VENV"
 "$VENV/bin/pip" install --quiet --upgrade pip
@@ -76,7 +92,7 @@ else
     "$VENV/bin/pip" install --quiet "$SCRIPT_DIR"
 fi
 
-# --- 6. write config (back up any existing one) ----------------------------------
+# --- 7. write config (back up any existing one) ----------------------------------
 DISK_PATH="/"
 mkdir -p "$CONFIG_DIR"
 if [ -f "$CONFIG" ]; then
@@ -93,10 +109,28 @@ interval_seconds = 60
 disk_path = "$DISK_PATH"
 timeout_seconds = 10
 EOF
-chmod 600 "$CONFIG"
+# root-owned, group-readable by the service account only: the token stays secret
+# from other users but the unprivileged service can read it.
+if [ "$OS" = linux ]; then
+    chown "root:$SERVICE_USER" "$CONFIG"
+    chmod 640 "$CONFIG"
+    chmod 755 "$CONFIG_DIR"
+    if [ -f "$CONFIG.bak" ]; then chmod 600 "$CONFIG.bak"; fi
+else
+    chmod 600 "$CONFIG"
+fi
 ok "Config written to $CONFIG"
 
-# --- 7. install + start the service ----------------------------------------------
+# --- 8. state directory (Linux) ---------------------------------------------------
+# systemd's StateDirectory= only fixes ownership of a directory it creates, so
+# repair installs where a root run left a root-owned buffer the service can't read.
+if [ "$OS" = linux ]; then
+    mkdir -p "$STATE_DIR"
+    chown -R "$SERVICE_USER:$SERVICE_USER" "$STATE_DIR"
+    chmod 700 "$STATE_DIR"
+fi
+
+# --- 9. install + start the service ----------------------------------------------
 if [ "$OS" = linux ]; then
     say "Installing systemd service..."
     cp "$SCRIPT_DIR/deploy/callisto-jupiter.service" /etc/systemd/system/
@@ -114,9 +148,21 @@ else
     LOG_HINT="tail -f /var/log/callisto-jupiter.log"
 fi
 
-# --- 8. verify with one collect+push cycle ---------------------------------------
+# --- 10. verify with one collect+push cycle --------------------------------------
+# Run as the service account on Linux, not root: it proves the account can read
+# the config, and stops the verification run from leaving a root-owned buffer.json
+# in the state directory that the service would then fail to read.
 say "Verifying with one collect + push cycle..."
-if "$BIN" --once; then
+if [ "$OS" = linux ]; then
+    if command -v runuser >/dev/null 2>&1; then
+        VERIFY=(runuser -u "$SERVICE_USER" -- "$BIN" --once)
+    else
+        VERIFY=(sudo -u "$SERVICE_USER" -- "$BIN" --once)
+    fi
+else
+    VERIFY=("$BIN" --once)
+fi
+if "${VERIFY[@]}"; then
     ok "callisto-jupiter installed and running."
     echo "   Follow logs: $LOG_HINT"
 else

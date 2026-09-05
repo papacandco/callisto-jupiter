@@ -135,16 +135,41 @@ platform's service manager:
 ### Linux — systemd
 
 ```bash
+# The unit runs as a dedicated unprivileged account; setup.sh creates it for you.
+sudo useradd --system --no-create-home --home-dir /var/lib/callisto-jupiter \
+    --shell /usr/sbin/nologin callisto-jupiter
 sudo cp deploy/callisto-jupiter.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now callisto-jupiter
 journalctl -u callisto-jupiter -f
 ```
 
+**File ownership matters.** The service runs as `callisto-jupiter`, so anything
+root writes for it must be group-readable by that account:
+
+```bash
+sudo chown root:callisto-jupiter /etc/callisto-jupiter/config.toml
+sudo chmod 640 /etc/callisto-jupiter/config.toml      # secret from other users,
+                                                      # readable by the service
+sudo chown -R callisto-jupiter:callisto-jupiter /var/lib/callisto-jupiter
+```
+
+A root-owned `0600` config is the classic failure here: the agent exits with
+`configuration error: cannot read config file …: Permission denied` on every
+start. Never fix that with `chmod 644` — that publishes your push token to every
+user on the box. Fix the group instead.
+
 The unit sets `StateDirectory=callisto-jupiter`, giving the service a writable
-`/var/lib/callisto-jupiter` for the store-and-forward buffer even under
-`DynamicUser` + `ProtectSystem=strict`. The agent honors the resulting
-`$STATE_DIRECTORY`, so the buffer persists across restarts out of the box.
+`/var/lib/callisto-jupiter` (owned by `User=`) for the store-and-forward buffer
+even under `ProtectSystem=strict`. The agent honors the resulting
+`$STATE_DIRECTORY`, so the buffer persists across restarts out of the box. Note
+that `StateDirectory=` only sets ownership on a directory systemd creates — if a
+root `--once` run created it first, chown it as above.
+
+Configuration errors exit `78` (`EX_CONFIG`) and the unit sets
+`RestartPreventExitStatus=78`, so a bad config stops the service with one clear
+journal entry instead of crashlooping every `RestartSec` indefinitely. After
+fixing the config, `sudo systemctl start callisto-jupiter`.
 
 ### macOS — launchd
 

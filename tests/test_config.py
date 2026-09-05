@@ -190,3 +190,27 @@ def test_invalid_buffer_max_samples_raises(tmp_path):
             "CALLISTO_TOKEN": "t",
             "CALLISTO_BUFFER_MAX_SAMPLES": "0",
         })
+
+
+@pytest.mark.skipif(os.name != "posix", reason="POSIX file modes")
+@pytest.mark.skipif(hasattr(os, "geteuid") and os.geteuid() == 0, reason="root reads any mode")
+def test_unreadable_config_raises_config_error(tmp_path):
+    """An unreadable config file (e.g. 0600 root-owned, service user) must be a
+    clean ConfigError, not a raw PermissionError traceback that crashloops the
+    service."""
+    path = _write(tmp_path, 'dsn = "https://x/s"\ntoken = "t"\n')
+    os.chmod(path, 0o000)
+    try:
+        with pytest.raises(ConfigError) as exc:
+            load_config(env={"CALLISTO_CONFIG": path})
+    finally:
+        os.chmod(path, 0o600)
+    assert path in str(exc.value)
+    assert "Permission denied" in str(exc.value)
+
+
+def test_malformed_config_raises_config_error(tmp_path):
+    path = _write(tmp_path, "this is not = valid = toml\n")
+    with pytest.raises(ConfigError) as exc:
+        load_config(env={"CALLISTO_CONFIG": path})
+    assert path in str(exc.value)

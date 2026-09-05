@@ -15,6 +15,11 @@ from . import __version__
 from .agent import Agent, run
 from .config import ConfigError, load_config
 
+# sysexits.h EX_CONFIG: the unit sets RestartPreventExitStatus=78, so a broken
+# configuration stops the service with a readable error instead of crashlooping
+# every RestartSec forever.
+EX_CONFIG = 78
+
 
 def _setup_logging() -> None:
     logging.basicConfig(
@@ -35,7 +40,7 @@ def main(argv: list[str] | None = None) -> int:
         config = load_config()
     except ConfigError as exc:
         print(f"configuration error: {exc}", file=sys.stderr)
-        return 1
+        return EX_CONFIG
 
     if args.once:
         from .collectors import prime_cpu
