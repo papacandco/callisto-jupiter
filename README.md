@@ -77,7 +77,7 @@ git clone https://github.com/papacandco/callisto-jupiter
 cd callisto-jupiter
 sudo python3 -m venv /opt/callisto-jupiter
 sudo /opt/callisto-jupiter/bin/pip install .          # core (CPU/RAM/DISK)
-sudo /opt/callisto-jupiter/bin/pip install '.[gpu]'   # add NVIDIA GPU support (pynvml)
+sudo /opt/callisto-jupiter/bin/pip install '.[gpu]'   # add NVIDIA GPU support (nvidia-ml-py)
 ```
 
 `pip` installs the `callisto_jupiter` package into the venv and creates the

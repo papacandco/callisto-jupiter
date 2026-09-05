@@ -3,7 +3,8 @@ contract: {metric_name, value, unit, collected_at}. Unit is "percent" for
 cpu/ram/disk/gpu, "bytes_per_sec" for network rx/tx, and "count" for process
 tallies.
 
-CPU/RAM/DISK come from psutil. GPU comes from NVIDIA's pynvml and is omitted
+CPU/RAM/DISK come from psutil. GPU comes from NVIDIA's nvidia-ml-py (imported
+as `pynvml`) and is omitted
 entirely when no GPU/driver is present. A failure collecting one metric is
 logged and that sample is dropped — the others are still returned.
 """
@@ -153,8 +154,9 @@ def collect_cpu_percents() -> list[float]:
 
 def collect_gpu_percent() -> float | None:
     """Max GPU utilization (%) across NVIDIA devices, or None when unavailable
-    (no pynvml, no driver, no GPU)."""
+    (bindings not installed, no driver, no GPU)."""
     try:
+        # Provided by the `gpu` extra's nvidia-ml-py, which ships this module name.
         import pynvml  # noqa: PLC0415 — optional dependency, imported lazily
     except Exception:
         return None

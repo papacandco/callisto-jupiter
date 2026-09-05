@@ -67,7 +67,10 @@ $Pip = Join-Path $Venv 'Scripts\pip.exe'
 & $Pip install --quiet --upgrade pip
 
 if (Get-Command nvidia-smi -ErrorAction SilentlyContinue) {
-    Say "NVIDIA GPU detected — installing with GPU support (pynvml)..."
+    Say "NVIDIA GPU detected — installing with GPU support (nvidia-ml-py)..."
+    # Drop the deprecated `pynvml` distribution if an older install left it behind:
+    # it owns the same pynvml.py that nvidia-ml-py ships, and it warns on every import.
+    & $Pip uninstall --quiet --yes pynvml 2>$null
     & $Pip install --quiet "$ScriptDir[gpu]"
 } else {
     Say "No NVIDIA GPU detected — installing core (CPU/RAM/DISK)..."

@@ -85,7 +85,10 @@ python3 -m venv "$VENV"
 "$VENV/bin/pip" install --quiet --upgrade pip
 
 if command -v nvidia-smi >/dev/null 2>&1; then
-    say "NVIDIA GPU detected — installing with GPU support (pynvml)..."
+    say "NVIDIA GPU detected — installing with GPU support (nvidia-ml-py)..."
+    # Drop the deprecated `pynvml` distribution if an older install left it behind:
+    # it owns the same pynvml.py that nvidia-ml-py ships, and it warns on every import.
+    "$VENV/bin/pip" uninstall --quiet --yes pynvml >/dev/null 2>&1 || true
     "$VENV/bin/pip" install --quiet "$SCRIPT_DIR[gpu]"
 else
     say "No NVIDIA GPU detected — installing core (CPU/RAM/DISK)..."
