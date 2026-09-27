@@ -1,7 +1,7 @@
 """Resource collectors. Each produces a sample matching the Callisto ingest
 contract: {metric_name, value, unit, collected_at}. Unit is "percent" for
 cpu/ram/disk/gpu, "bytes_per_sec" for network rx/tx, and "count" for process
-tallies.
+tallies. Docker container metrics live in containers.py and join the same scrape.
 
 CPU/RAM/DISK come from psutil. GPU comes from NVIDIA's nvidia-ml-py (imported
 as `pynvml`) and is omitted
@@ -14,8 +14,12 @@ from __future__ import annotations
 import logging
 import time
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 import psutil
+
+if TYPE_CHECKING:
+    from .containers import ContainerState
 
 log = logging.getLogger("callisto_jupiter.collectors")
 
@@ -185,10 +189,15 @@ def collect_gpu_percent() -> float | None:
             pass
 
 
-def collect_samples(disk_path: str = "/", net_state: NetworkRateState | None = None) -> list[dict]:
+def collect_samples(
+    disk_path: str = "/",
+    net_state: NetworkRateState | None = None,
+    container_state: ContainerState | None = None,
+) -> list[dict]:
     """Collect cpu/ram/disk/gpu/network/process samples. GPU is omitted when
     unavailable; per-interface net_rx/net_tx rates are included only when
-    net_state is supplied; any single collector error is logged and skipped."""
+    net_state is supplied, and Docker container samples only when
+    container_state is; any single collector error is logged and skipped."""
     collected_at = _now_iso()
     samples: list[dict] = []
 
@@ -234,5 +243,12 @@ def collect_samples(disk_path: str = "/", net_state: NetworkRateState | None = N
             )
     except Exception as exc:
         log.warning("%s collection failed: %s", RESOURCE_PROC, exc)
+
+    # Docker containers: per-container cpu/ram/network + per-state counts.
+    if container_state is not None:
+        # Imported here: containers.py builds its samples with this module's helpers.
+        from .containers import collect_container_samples  # noqa: PLC0415
+
+        samples.extend(collect_container_samples(container_state, collected_at, time.monotonic()))
 
     return samples

@@ -31,6 +31,20 @@ states `running`/`sleeping`/`idle`/`stopped`/`zombie`/`other`). Network rates ar
 deltas between scrapes, so the very first scrape after start emits no `net_*`
 samples.
 
+On a Docker host it also reports **container metrics**, read from the Docker
+Engine API on `/var/run/docker.sock` (standard library only, read-only GETs):
+
+| metric | unit | labels | meaning |
+|---|---|---|---|
+| `container_cpu` | `percent` | `{"container": "<name>"}` | share of the **whole host's** CPU (0–100, same scale as `cpu`; `docker stats` would show one busy core on a 10-core host as 100%, this shows 10%) |
+| `container_ram` | `percent` | `{"container": "<name>"}` | memory used against the container's limit (the host's RAM when unlimited), page cache excluded — `docker stats`' MEM % |
+| `container_net_rx` / `container_net_tx` | `bytes_per_sec` | `{"container": "<name>"}` | throughput summed over the container's interfaces (absent under `network_mode: host`) |
+| `container_count` | `count` | `{"state": "<state>"}` | containers per state (`running`, `exited`, `paused`, …), stopped ones included |
+
+Per-container samples cover up to 100 running containers. CPU and network are
+deltas, so a container's first scrape emits only `container_ram`. Hosts without
+Docker emit none of these; set `docker_socket = ""` to turn them off.
+
 ## Reliability (store-and-forward)
 
 If a push fails (network blip, ingest restart), the agent does **not** drop the
@@ -118,6 +132,7 @@ Settings (file keys / env overrides):
 | `buffer_max_age_seconds` | `CALLISTO_BUFFER_MAX_AGE` | `3600` | drop buffered samples older than this |
 | `buffer_max_samples` | `CALLISTO_BUFFER_MAX_SAMPLES` | `10000` | max buffered samples (oldest dropped first) |
 | `flush_batch_size` | `CALLISTO_FLUSH_BATCH` | `500` | samples per HTTP request when draining the buffer |
+| `docker_socket` | `CALLISTO_DOCKER_SOCKET` | `/var/run/docker.sock` (Unix), empty (Windows) | Docker Engine socket for container metrics; empty = off |
 | _config file_ | `CALLISTO_CONFIG` | OS path above | full path to the config file |
 
 ## Run
@@ -166,6 +181,15 @@ even under `ProtectSystem=strict`. The agent honors the resulting
 `$STATE_DIRECTORY`, so the buffer persists across restarts out of the box. Note
 that `StateDirectory=` only sets ownership on a directory systemd creates — if a
 root `--once` run created it first, chown it as above.
+
+**Docker.** The Docker socket only opens for root and the `docker` group, so
+where Docker is installed `setup.sh` adds `callisto-jupiter` to `docker`. That
+membership is root-equivalent on the host (anyone who can talk to the daemon can
+start a privileged container), even though the agent only reads. To refuse it,
+install with `--no-docker`, which also writes `docker_socket = ""`. By hand:
+`sudo usermod -aG docker callisto-jupiter && sudo systemctl restart callisto-jupiter`.
+Without the group the agent logs `docker metrics unavailable … Permission denied`
+once and carries on with host metrics.
 
 Configuration errors exit `78` (`EX_CONFIG`) and the unit sets
 `RestartPreventExitStatus=78`, so a bad config stops the service with one clear

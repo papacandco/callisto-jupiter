@@ -29,7 +29,7 @@ def test_run_once_uses_injected_client(monkeypatch):
             pushed["samples"] = samples
             return True
 
-    monkeypatch.setattr(agent_mod, "collect_samples", lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+    monkeypatch.setattr(agent_mod, "collect_samples", lambda disk_path, net_state=None, container_state=None: [{"metric_name": "cpu", "value": 1}])
     agent = Agent(Config(dsn="https://x/s", token="t"), client=FakeClient())
 
     assert agent.run_once() is True
@@ -44,7 +44,7 @@ def test_failed_push_keeps_samples_buffered(monkeypatch):
             return False
 
     monkeypatch.setattr(agent_mod, "collect_samples",
-                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+                        lambda disk_path, net_state=None, container_state=None: [{"metric_name": "cpu", "value": 1}])
     agent = Agent(Config(dsn="https://x/s", token="t"), client=FailingClient())
 
     assert agent.run_once() is False
@@ -62,7 +62,7 @@ def test_recovered_push_drains_backlog(monkeypatch):
             return calls["n"] > 1  # first push fails, later ones succeed
 
     monkeypatch.setattr(agent_mod, "collect_samples",
-                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+                        lambda disk_path, net_state=None, container_state=None: [{"metric_name": "cpu", "value": 1}])
     agent = Agent(Config(dsn="https://x/s", token="t"), client=FlakyClient())
 
     assert agent.run_once() is False     # outage: buffered
@@ -82,7 +82,7 @@ def test_backlog_flushes_in_chunks(monkeypatch):
             return True
 
     monkeypatch.setattr(agent_mod, "collect_samples",
-                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": i} for i in range(5)])
+                        lambda disk_path, net_state=None, container_state=None: [{"metric_name": "cpu", "value": i} for i in range(5)])
     cfg = Config(dsn="https://x/s", token="t", flush_batch_size=2)
     agent = Agent(cfg, client=CountingClient())
 
@@ -104,7 +104,7 @@ def test_run_once_persists_buffer_to_disk_on_failure(tmp_path, monkeypatch):
             return state["up"]
 
     monkeypatch.setattr(agent_mod, "collect_samples",
-                        lambda disk_path, net_state=None: [{"metric_name": "cpu", "value": 1}])
+                        lambda disk_path, net_state=None, container_state=None: [{"metric_name": "cpu", "value": 1}])
     cfg = Config(dsn="https://x/s", token="t", buffer_path=str(buffer_file))
     agent = Agent(cfg, client=TogglingClient())
 
@@ -117,3 +117,28 @@ def test_run_once_persists_buffer_to_disk_on_failure(tmp_path, monkeypatch):
     state["up"] = True
     assert agent.run_once() is True
     assert json.loads(buffer_file.read_text()) == []
+
+
+def test_agent_passes_its_container_state_to_every_cycle(monkeypatch):
+    import callisto_jupiter.agent as agent_mod
+
+    seen = []
+    monkeypatch.setattr(agent_mod, "collect_samples",
+                        lambda disk_path, net_state=None, container_state=None: seen.append(container_state) or [])
+
+    class OkClient:
+        def push(self, samples):
+            return True
+
+    agent = Agent(Config(dsn="https://x/s", token="t", docker_socket="/tmp/d.sock", buffer_path=""),
+                  client=OkClient())
+    agent.run_once()
+    agent.run_once()
+
+    assert seen[0] is seen[1]  # one state across cycles, so CPU/network deltas work
+    assert seen[0].socket_path == "/tmp/d.sock"
+
+
+def test_agent_container_metrics_disabled_by_empty_socket():
+    agent = Agent(Config(dsn="https://x/s", token="t", docker_socket="", buffer_path=""))
+    assert agent._containers.client is None

@@ -51,6 +51,14 @@ def default_buffer_path() -> str:
     return "/var/lib/callisto-jupiter/buffer.json"
 
 
+def default_docker_socket() -> str:
+    """Docker Engine socket read for container metrics. Docker Desktop on Windows
+    listens on a named pipe instead, which the agent doesn't read, so container
+    metrics are off there. Overridable via CALLISTO_DOCKER_SOCKET; an empty value
+    disables container metrics."""
+    return "" if sys.platform == "win32" else "/var/run/docker.sock"
+
+
 def default_disk_path() -> str:
     """Root filesystem to report as the `disk` metric, per OS."""
     return "C:\\" if sys.platform == "win32" else "/"
@@ -71,6 +79,7 @@ class Config:
     buffer_max_age_seconds: int = DEFAULT_BUFFER_MAX_AGE
     buffer_max_samples: int = DEFAULT_BUFFER_MAX_SAMPLES
     flush_batch_size: int = DEFAULT_FLUSH_BATCH
+    docker_socket: str = ""
 
 
 def _read_file(path: str) -> dict:
@@ -141,6 +150,13 @@ def load_config(env: dict | None = None) -> Config:
     else:
         buffer_path = default_buffer_path()
 
+    if "CALLISTO_DOCKER_SOCKET" in env:
+        docker_socket = env["CALLISTO_DOCKER_SOCKET"]
+    elif "docker_socket" in file_cfg:
+        docker_socket = str(file_cfg["docker_socket"])
+    else:
+        docker_socket = default_docker_socket()
+
     buffer_max_age = env.get(
         "CALLISTO_BUFFER_MAX_AGE", file_cfg.get("buffer_max_age_seconds", DEFAULT_BUFFER_MAX_AGE)
     )
@@ -171,4 +187,5 @@ def load_config(env: dict | None = None) -> Config:
         buffer_max_age_seconds=buffer_max_age_seconds,
         buffer_max_samples=buffer_max_samples_v,
         flush_batch_size=flush_batch_size,
+        docker_socket=docker_socket,
     )

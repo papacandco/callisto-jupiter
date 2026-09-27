@@ -214,3 +214,29 @@ def test_malformed_config_raises_config_error(tmp_path):
     with pytest.raises(ConfigError) as exc:
         load_config(env={"CALLISTO_CONFIG": path})
     assert path in str(exc.value)
+
+
+def test_docker_socket_defaults_per_os(tmp_path, monkeypatch):
+    path = _write(tmp_path, 'dsn = "https://x/s"\ntoken = "t"\n')
+
+    monkeypatch.setattr(config_mod.sys, "platform", "linux")
+    assert load_config(env={"CALLISTO_CONFIG": path}).docker_socket == "/var/run/docker.sock"
+
+    # Docker Desktop on Windows listens on a named pipe, which the agent can't read.
+    monkeypatch.setattr(config_mod.sys, "platform", "win32")
+    assert load_config(env={"CALLISTO_CONFIG": path}).docker_socket == ""
+
+
+def test_docker_socket_from_file_and_env(tmp_path):
+    path = _write(tmp_path, 'dsn = "https://x/s"\ntoken = "t"\ndocker_socket = "/run/user/1000/docker.sock"\n')
+    assert load_config(env={"CALLISTO_CONFIG": path}).docker_socket == "/run/user/1000/docker.sock"
+
+    cfg = load_config(env={"CALLISTO_CONFIG": path, "CALLISTO_DOCKER_SOCKET": "/tmp/d.sock"})
+    assert cfg.docker_socket == "/tmp/d.sock"
+
+
+def test_empty_docker_socket_disables_container_metrics(tmp_path):
+    path = _write(tmp_path, 'dsn = "https://x/s"\ntoken = "t"\ndocker_socket = ""\n')
+    assert load_config(env={"CALLISTO_CONFIG": path}).docker_socket == ""
+    path = _write(tmp_path, 'dsn = "https://x/s"\ntoken = "t"\n')
+    assert load_config(env={"CALLISTO_CONFIG": path, "CALLISTO_DOCKER_SOCKET": ""}).docker_socket == ""

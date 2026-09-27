@@ -33,6 +33,13 @@ buffer_max_samples = 10000
 # Max samples sent per HTTP request when draining the buffer.
 flush_batch_size = 500
 
+# Docker Engine socket read for container metrics (container_cpu/ram/net_rx/
+# net_tx/count). Hosts without Docker simply report none. The agent's account
+# must be able to open it: root, or a member of the `docker` group (which is
+# root-equivalent). Set docker_socket = "" to turn container metrics off.
+# docker_socket = "/var/run/docker.sock"
+
 # Any of the above can be overridden by environment variables:
 #   CALLISTO_DSN, CALLISTO_TOKEN, CALLISTO_INTERVAL, CALLISTO_DISK_PATH, CALLISTO_TIMEOUT,
-#   CALLISTO_BUFFER_PATH, CALLISTO_BUFFER_MAX_AGE, CALLISTO_BUFFER_MAX_SAMPLES, CALLISTO_FLUSH_BATCH
+#   CALLISTO_BUFFER_PATH, CALLISTO_BUFFER_MAX_AGE, CALLISTO_BUFFER_MAX_SAMPLES, CALLISTO_FLUSH_BATCH,
+#   CALLISTO_DOCKER_SOCKET

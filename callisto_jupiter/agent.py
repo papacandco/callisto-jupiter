@@ -5,11 +5,13 @@ from __future__ import annotations
 import logging
 import signal
 import threading
+import time
 
 from .buffer import SampleBuffer
 from .client import IngestClient
 from .collectors import NetworkRateState, collect_samples, prime_cpu
 from .config import Config
+from .containers import ContainerState
 
 log = logging.getLogger("callisto_jupiter.agent")
 
@@ -22,6 +24,7 @@ class Agent:
         )
         self._stop = threading.Event()
         self._net_state = NetworkRateState()
+        self._containers = ContainerState(config.docker_socket)
         self._buffer = SampleBuffer(
             config.buffer_path or None,
             config.buffer_max_age_seconds,
@@ -50,7 +53,7 @@ class Agent:
         """Collect a cycle, buffer it durably, then flush the buffer to the
         ingest endpoint in front-first chunks. Returns True only when the buffer
         is empty afterwards (everything has been accepted by the server)."""
-        samples = collect_samples(self.config.disk_path, self._net_state)
+        samples = collect_samples(self.config.disk_path, self._net_state, self._containers)
         self._buffer.add(samples)
         self._buffer.prune()
         self._buffer.persist()  # durable before any network attempt
@@ -74,6 +77,7 @@ class Agent:
     def run(self) -> None:
         prime_cpu()
         self._net_state.prime()
+        self._containers.prime(time.monotonic())
         log.info(
             "callisto-jupiter started: interval=%ss disk_path=%s",
             self.config.interval_seconds,

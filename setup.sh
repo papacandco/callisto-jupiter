@@ -3,7 +3,7 @@
 # callisto-jupiter one-command installer (Linux + macOS).
 #
 # Usage:
-#   sudo ./setup.sh "https://ingest.callistosignal.com/servers/<id>" "<token>"
+#   sudo ./setup.sh "https://ingest.callistosignal.com/servers/<id>" "<token>" [--no-docker]
 #   sudo ./setup.sh --uninstall [--keep-config]
 #
 # The DSN and token can also come from the CALLISTO_DSN / CALLISTO_TOKEN
@@ -12,6 +12,11 @@
 # dedicated venv at /opt/callisto-jupiter, writes the config to the
 # OS-conventional path, installs + starts the service, and runs one verification
 # cycle. Re-running is safe (venv reused, existing config backed up).
+#
+# Where Docker is installed, the Linux service account is added to the `docker`
+# group so the agent can read container metrics from the Docker socket. That
+# membership is root-equivalent on the host; --no-docker skips it (and turns
+# container metrics off).
 #
 # --uninstall removes everything this script creates: the service, the venv, the
 # state directory, the service account and the config (the config holds the push
@@ -33,18 +38,27 @@ die()  { err "$*"; exit 1; }
 # --- 1. flags --------------------------------------------------------------------
 UNINSTALL=false
 KEEP_CONFIG=false
+NO_DOCKER=false
+# Flags may sit anywhere, so the DSN/token are the arguments left once they are
+# removed. ARGS keeps the original list for the sudo re-exec below. The
+# ${a[@]+"${a[@]}"} form keeps `set -u` quiet on an empty array under bash 3.2 (macOS).
+ARGS=("$@")
+POSITIONAL=()
 for arg in "$@"; do
     case "$arg" in
         --uninstall)   UNINSTALL=true ;;
         --keep-config) KEEP_CONFIG=true ;;
+        --no-docker)   NO_DOCKER=true ;;
+        *)             POSITIONAL+=("$arg") ;;
     esac
 done
+set -- ${POSITIONAL[@]+"${POSITIONAL[@]}"}
 
 # --- 2. privilege: re-exec under sudo if not root --------------------------------
 if [ "$(id -u)" -ne 0 ]; then
     say "Elevating with sudo..."
     exec sudo -E DSN_FROM_PARENT="${1:-${CALLISTO_DSN:-}}" \
-        TOKEN_FROM_PARENT="${2:-${CALLISTO_TOKEN:-}}" bash "$0" "$@"
+        TOKEN_FROM_PARENT="${2:-${CALLISTO_TOKEN:-}}" bash "$0" ${ARGS[@]+"${ARGS[@]}"}
 fi
 
 # --- 3. resolve OS ---------------------------------------------------------------
@@ -142,6 +156,24 @@ if [ "$OS" = linux ] && ! getent passwd "$SERVICE_USER" >/dev/null 2>&1; then
         || die "Could not create the $SERVICE_USER system user."
 fi
 
+# Docker container metrics read the Docker socket, which only root and the
+# `docker` group can open (launchd on macOS runs the agent as root). `docker`
+# membership is root-equivalent — whoever can talk to the daemon can start a
+# privileged container — so it is only granted where Docker is installed, and
+# --no-docker refuses it. The agent itself only ever sends read-only GETs.
+DOCKER_SETTING=""
+if [ "$NO_DOCKER" = true ]; then
+    DOCKER_SETTING='docker_socket = ""'
+    if [ "$OS" = linux ] && id -nG "$SERVICE_USER" 2>/dev/null | tr ' ' '\n' | grep -qx docker; then
+        gpasswd -d "$SERVICE_USER" docker >/dev/null 2>&1 \
+            || err "Could not remove $SERVICE_USER from the docker group — remove it by hand."
+    fi
+    say "Docker container metrics disabled (--no-docker)."
+elif [ "$OS" = linux ] && getent group docker >/dev/null 2>&1; then
+    say "Docker detected — letting $SERVICE_USER read container metrics (docker group)..."
+    usermod -aG docker "$SERVICE_USER" || die "Could not add $SERVICE_USER to the docker group."
+fi
+
 # --- 8. venv + install (GPU autodetect) ------------------------------------------
 say "Creating virtualenv at $VENV ..."
 python3 -m venv "$VENV"
@@ -174,6 +206,7 @@ token = "$TOKEN"
 interval_seconds = 60
 disk_path = "$DISK_PATH"
 timeout_seconds = 10
+$DOCKER_SETTING
 EOF
 # root-owned, group-readable by the service account only: the token stays secret
 # from other users but the unprivileged service can read it.
@@ -201,7 +234,10 @@ if [ "$OS" = linux ]; then
     say "Installing systemd service..."
     cp "$SCRIPT_DIR/deploy/callisto-jupiter.service" "$UNIT"
     systemctl daemon-reload
-    systemctl enable --now callisto-jupiter
+    # restart, not `enable --now`: on a re-run the service is already up, and it
+    # must restart to pick up the new venv, config and docker group membership.
+    systemctl enable callisto-jupiter
+    systemctl restart callisto-jupiter
     LOG_HINT="journalctl -u callisto-jupiter -f"
 else
     say "Installing launchd daemon..."

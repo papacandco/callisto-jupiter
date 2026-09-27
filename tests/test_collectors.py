@@ -199,3 +199,31 @@ def test_process_status_counts_skips_vanished(monkeypatch):
 
     counts = collectors.collect_process_status_counts()
     assert counts == {"running": 1}  # iteration stops cleanly on NoSuchProcess
+
+
+def test_collect_samples_includes_container_samples_on_the_same_timestamp(monkeypatch):
+    from callisto_jupiter.containers import ContainerState
+
+    _patch_psutil(monkeypatch)
+    monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
+
+    class Docker:
+        def containers(self):
+            return [{"Id": "a", "Names": ["/web"], "State": "running"}]
+
+        def stats(self, container_id):
+            return {"memory_stats": {"usage": 1, "limit": 4}}
+
+    samples = collectors.collect_samples("/", container_state=ContainerState("/x", client=Docker()))
+
+    by_name = {s["metric_name"]: s for s in samples}
+    assert by_name["container_ram"]["value"] == 25.0
+    assert by_name["container_count"]["labels"] == {"state": "running"}
+    assert len({s["collected_at"] for s in samples}) == 1
+
+
+def test_collect_samples_without_container_state_has_no_containers(monkeypatch):
+    _patch_psutil(monkeypatch)
+    monkeypatch.setattr(collectors, "collect_gpu_percent", lambda: None)
+    names = {s["metric_name"] for s in collectors.collect_samples("/")}
+    assert not any(n.startswith("container_") for n in names)
