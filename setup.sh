@@ -31,8 +31,8 @@ BIN="$VENV/bin/callisto-jupiter"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 say()  { printf '\033[1;36m==>\033[0m %s\n' "$*"; }
-ok()   { printf '\033[1;32m✅ %s\033[0m\n' "$*"; }
-err()  { printf '\033[1;31m❌ %s\033[0m\n' "$*" >&2; }
+ok()   { printf '\033[1;32mok: %s\033[0m\n' "$*"; }
+err()  { printf '\033[1;31merror: %s\033[0m\n' "$*" >&2; }
 die()  { err "$*"; exit 1; }
 
 # --- 1. flags --------------------------------------------------------------------
